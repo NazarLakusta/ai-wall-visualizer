@@ -64,6 +64,7 @@ from app.services.pricing_bulk import bulk_adjust_prices
 from app.services.date_filter import parse_filter_date_end_exclusive, parse_filter_date_start
 from app.services.quote_pdf import build_lead_quote_pdf
 from app.services.queue_monitor import queue_snapshot
+from app.workers.tasks import send_store_broadcast
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
