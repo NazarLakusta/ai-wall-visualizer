@@ -9,10 +9,12 @@ logger = structlog.get_logger()
 def _webapp_keyboard(webapp_url: str | None) -> dict | None:
     if not webapp_url or not webapp_url.startswith("https://"):
         return None
+    # Reply keyboard (як у «Тестове фото») — надійніше за inline web_app
     return {
-        "inline_keyboard": [[
+        "keyboard": [[
             {"text": "🎨 Відкрити редактор", "web_app": {"url": webapp_url}}
-        ]]
+        ]],
+        "resize_keyboard": True,
     }
 
 
