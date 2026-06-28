@@ -1,0 +1,19 @@
+# HTTP-only bootstrap (before SSL). Use with init-letsencrypt.sh
+services:
+  api:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    restart: unless-stopped
+
+  bot:
+    restart: unless-stopped
+
+  worker:
+    restart: unless-stopped
+
+  cleanup:
+    restart: unless-stopped
+
+  ops:
+    restart: unless-stopped
+
+  # nginx started manually by init-letsencrypt.sh on port 80

@@ -18,6 +18,7 @@ storage/textures/*
 node_modules/
 backups/
 certbot/
+credentials.local.txt
 *.pem
 acme.json
 .idea/

@@ -12,11 +12,14 @@
 ## Перед продакшеном
 
 1. Скопіюйте `.env.example` → `.env`
-2. Згенеруйте секрети:
+2. Локально (Windows) — один раз:
    ```powershell
-   .\scripts\generate-secrets.ps1
+   .\scripts\apply-security.ps1
    ```
-3. Встановіть `APP_ENV=production` — API **не стартує** зі слабкими `SECRET_KEY` / паролями адмінів.
+   Оновить секрети, паролі адмінів у БД, зробить тестовий бекап і задачу щодня о 03:00.
+   Нові паролі — у `credentials.local.txt` (не в git).
+3. Або вручну: `.\scripts\generate-secrets.ps1` + змініть `.env`
+4. Встановіть `APP_ENV=production` на VPS — API **не стартує** зі слабкими секретами.
 4. Змініть паролі демо-адмінів або створіть нових через platform-admin.
 5. Якщо токен Telegram колись потрапив у git або `.env.example` — **відкличте його в @BotFather** і видайте новий.
 

@@ -10,21 +10,10 @@ from app.models import (
 )
 from app.services.store_brand_ops import brand_ids_for_store
 from app.services.store_pack_prices import bump_store_brand_pack_prices
+from app.services.pricing import adjust_price
 
 BULK_SCOPES = frozenset({"all", "paint", "decor", "brand", "material"})
 BULK_MODES = frozenset({"add_uah", "sub_uah", "add_percent", "sub_percent"})
-
-
-def adjust_price(price: float, mode: str, value: float) -> float:
-    if mode == "add_uah":
-        return max(0.0, round(price + value, 2))
-    if mode == "sub_uah":
-        return max(0.0, round(price - value, 2))
-    if mode == "add_percent":
-        return max(0.0, round(price * (1 + value / 100), 2))
-    if mode == "sub_percent":
-        return max(0.0, round(price * (1 - value / 100), 2))
-    raise ValueError(f"Unknown mode: {mode}")
 
 
 async def bulk_adjust_prices(

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Brand, BrandPackSize, StoreBrandPackPrice
 from app.schemas import BrandPackSizeIn
-from app.services.pricing_bulk import adjust_price
+from app.services.pricing import adjust_price
 
 
 def effective_pack_price(pack: BrandPackSize, overrides: dict[int, float]) -> float:
