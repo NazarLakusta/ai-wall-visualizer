@@ -10,6 +10,7 @@ STEPS = (
     "seed_dekor_showroom_catalog.py",
     "seed_dekor_brand_packs.py",
     "seed_dekor_chinese_silk_shades.py",
+    "link_store_brands.py",
 )
 
 

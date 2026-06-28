@@ -10,7 +10,7 @@ sys.path.insert(0, "/app")
 from sqlalchemy import select
 
 from app.database import SyncSessionLocal
-from app.models import Brand, Color, ColorCategory, Store, StoreColor
+from app.models import Brand, Color, ColorCategory, Store, StoreBrand, StoreColor
 
 STORE_SLUG = os.environ.get("STORE_SLUG", "dekor-showroom")
 
@@ -123,6 +123,17 @@ def main() -> None:
                 db.flush()
             elif not brand.active:
                 brand.active = True
+
+            link = db.scalar(
+                select(StoreBrand).where(
+                    StoreBrand.store_id == store.id,
+                    StoreBrand.brand_id == brand.id,
+                )
+            )
+            if not link:
+                db.add(StoreBrand(store_id=store.id, brand_id=brand.id, active=True))
+            else:
+                link.active = True
 
             for name, hex_val, code, cat_name, price in colors:
                 _upsert(db, store.id, brand.id, name, hex_val, code, ColorCategory(cat_name), price)
