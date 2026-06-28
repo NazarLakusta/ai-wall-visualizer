@@ -28,9 +28,18 @@ def main() -> None:
         )
         if platform_admin:
             platform_admin.password_hash = hash_password(settings.platform_admin_password)
+            platform_admin.active = True
             print(f"Updated platform admin password: {settings.platform_admin_email}")
         else:
-            print(f"No platform admin for {settings.platform_admin_email} — run seed first")
+            db.add(
+                PlatformAdmin(
+                    email=settings.platform_admin_email,
+                    password_hash=hash_password(settings.platform_admin_password),
+                    name="Platform Admin",
+                    active=True,
+                )
+            )
+            print(f"Created platform admin: {settings.platform_admin_email}")
 
         db.commit()
     print("Done.")

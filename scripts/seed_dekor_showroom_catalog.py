@@ -1,5 +1,6 @@
 """Seed paint catalog for dekor.showroom store (Innen Wunder, Latex Matt, Innen Latex, Koala)."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from app.database import SyncSessionLocal
 from app.models import Brand, Color, ColorCategory, Store, StoreColor
 
-STORE_SLUG = "dekor-showroom"
+STORE_SLUG = os.environ.get("STORE_SLUG", "dekor-showroom")
 
 CATALOG: dict[str, list[tuple[str, str, str, str, float]]] = {
     "Innen Wunder": [

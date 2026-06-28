@@ -1,5 +1,6 @@
 """Seed brand packaging and tint bases for dekor.showroom catalog brands."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from app.database import SyncSessionLocal
 from app.models import Brand, BrandPackSize, Color, ColorCategory, Store, StoreColor
 
-STORE_SLUG = "dekor-showroom"
+STORE_SLUG = os.environ.get("STORE_SLUG", "dekor-showroom")
 
 GLOSS_LINE_NAME = "Latex Gloss"
 GLOSS_SOURCE_BRAND = "Latex Matt"

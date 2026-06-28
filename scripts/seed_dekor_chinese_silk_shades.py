@@ -1,5 +1,6 @@
 """Seed popular decorative shades for Китайський шовк at dekor.showroom."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from app.database import SyncSessionLocal
 from app.models import DecorativeColor, DecorativeMaterial, Store
 
-STORE_SLUG = "dekor-showroom"
+STORE_SLUG = os.environ.get("STORE_SLUG", "dekor-showroom")
 MATERIAL_NAME = "Китайський шовк"
 
 # Same popular shades as demo «Мокрий шовк»
