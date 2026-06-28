@@ -1,0 +1,65 @@
+# Scale profile for store launch / stories traffic.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.scale.yml up -d
+#
+# Set in .env for accurate ETA in bot:
+#   AI_WORKER_COUNT=3
+#   AVG_PROCESSING_SECONDS=45
+#   MAX_AI_QUEUE=120
+
+services:
+  api:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  worker:
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1 -n worker1@%h
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  worker2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1 -n worker2@%h
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./storage:/app/storage
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    restart: unless-stopped
+
+  worker3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1 -n worker3@%h
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./storage:/app/storage
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    restart: unless-stopped

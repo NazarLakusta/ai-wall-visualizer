@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI Wall Visualizer</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/app/css/style.css?v=2">
+</head>
+<body>
+  <div id="app">
+    <div class="canvas-wrap">
+      <canvas id="room-canvas"></canvas>
+      <div id="loading" class="loading">Завантаження...</div>
+    </div>
+    <div class="panel">
+      <div id="store-bar" class="store-bar hidden">
+        <span id="store-name-label"></span>
+        <button type="button" id="contact-store-btn" class="link-btn">📞 Зв'язатися</button>
+      </div>
+
+      <div id="promo-banner" class="promo-banner hidden"></div>
+
+      <div class="area-row">
+        <label for="wall-area">Площа стін:</label>
+        <input id="wall-area" type="number" min="1" step="0.1" placeholder="м²">
+        <span class="area-hint">м²</span>
+      </div>
+
+      <div id="cost-bar" class="cost-bar hidden">
+        <div class="cost-main">
+          <span id="cost-label">Орієнтовна вартість</span>
+          <strong id="cost-total">—</strong>
+        </div>
+        <div id="cost-detail" class="cost-detail"></div>
+      </div>
+
+      <div class="mode-tabs">
+        <button data-mode="paint" class="active">🎨 Фарба</button>
+        <button data-mode="decor">✨ Декоративка</button>
+      </div>
+
+      <div id="paint-panel">
+        <p class="step-label">1. Тип покриття</p>
+        <div class="finish-row">
+          <button data-finish="matte" class="active">Матова</button>
+          <button data-finish="silk_matte">Шовк.-матова</button>
+          <button data-finish="gloss">Глянцева</button>
+        </div>
+        <p class="step-label">2. Лінійка та колір</p>
+        <div class="filters">
+          <select id="brand-filter"></select>
+          <span id="brand-discount-hint" class="brand-discount-hint hidden"></span>
+          <select id="category-filter"></select>
+          <input id="search-input" type="search" placeholder="Пошук за назвою або кодом">
+        </div>
+        <div class="selection-bar">
+          <span id="paint-selection-info" class="selection-info">Оберіть колір</span>
+          <button type="button" id="reset-paint-btn" class="reset-btn">↩ Оригінал</button>
+        </div>
+        <div id="color-grid" class="color-grid"></div>
+        <button type="button" id="color-load-more" class="load-more-btn hidden">Показати ще</button>
+      </div>
+
+      <div id="decor-panel" class="hidden">
+        <div id="material-list" class="material-list"></div>
+        <div class="scale-row">
+          <label>Масштаб:</label>
+          <input id="texture-scale" type="range" min="0.5" max="3" step="0.1" value="1">
+          <span id="scale-value">1.0</span>
+        </div>
+        <div class="selection-bar">
+          <span id="decor-selection-info" class="selection-info">Оберіть матеріал і відтінок</span>
+          <button type="button" id="reset-decor-btn" class="reset-btn">↩ Оригінал</button>
+        </div>
+        <div id="material-color-grid" class="color-grid"></div>
+      </div>
+
+      <div class="action-row">
+        <button type="button" id="lead-btn" class="action-btn primary">📨 Надіслати консультанту</button>
+        <button type="button" id="download-btn" class="action-btn">📥 Зберегти фото</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lead-modal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Запит розрахунку</h3>
+      <p id="lead-summary" class="lead-summary"></p>
+      <input id="lead-phone" type="tel" placeholder="Телефон +380..." required>
+      <input id="lead-name" type="text" placeholder="Ваше ім'я (необов'язково)">
+      <textarea id="lead-comment" rows="2" placeholder="Коментар (необов'язково)"></textarea>
+      <div class="modal-actions">
+        <button type="button" id="lead-cancel" class="action-btn">Скасувати</button>
+        <button type="button" id="lead-submit" class="action-btn primary">Надіслати</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="contact-modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="contact-title">Магазин</h3>
+      <p id="contact-phone" class="contact-line"></p>
+      <p id="contact-address" class="contact-line"></p>
+      <p id="contact-telegram" class="contact-line"></p>
+      <div class="modal-actions">
+        <button type="button" id="contact-close" class="action-btn">Закрити</button>
+        <a id="contact-call" class="action-btn primary" href="#">Зателефонувати</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app/js/assets.js"></script>
+  <script src="/app/js/guided-filter.js"></script>
+  <script src="/app/js/renderer.js"></script>
+  <script src="/app/js/app.js?v=2"></script>
+</body>
+</html>

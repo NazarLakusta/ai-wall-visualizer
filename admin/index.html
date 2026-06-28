@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — AI Wall Visualizer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232563eb'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18' fill='white' font-family='sans-serif'%3EA%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/admin/css/style.css?v=9">
+</head>
+<body>
+  <div id="login-screen">
+    <h2>Вхід в адмін-панель</h2>
+    <form id="login-form">
+      <input id="login-email" type="email" placeholder="Email" required>
+      <input id="login-password" type="password" placeholder="Пароль" required>
+      <button type="submit" class="btn btn-primary">Увійти</button>
+    </form>
+    <p id="login-error" style="color:#e74c3c;margin-top:12px;display:none;"></p>
+  </div>
+
+  <div id="admin-app" class="hidden">
+    <header>
+      <h1>AI Wall Visualizer — Admin <span id="admin-role-badge" class="role-badge"></span></h1>
+      <button id="logout-btn">Вийти</button>
+    </header>
+    <main>
+      <div class="tabs">
+        <button data-tab="stats" class="active">Статистика</button>
+        <button data-tab="store">Магазин</button>
+        <button data-tab="leads">Заявки</button>
+        <button data-tab="inbox">Проєкти</button>
+        <button data-tab="brands">Бренди</button>
+        <button data-tab="colors">Кольори</button>
+        <button data-tab="import">Імпорт</button>
+        <button data-tab="materials">Декоративка</button>
+        <button data-tab="pricing" class="owner-only">Ціни</button>
+        <button data-tab="broadcast" class="owner-only">Розсилка</button>
+      </div>
+
+      <div id="panel-stats" class="panel active">
+        <h3>Статистика</h3>
+        <div class="stats-toolbar">
+          <label>
+            Період
+            <select id="stats-period">
+              <option value="7">7 днів</option>
+              <option value="30" selected>30 днів</option>
+              <option value="0">Весь час</option>
+            </select>
+          </label>
+        </div>
+        <div id="stats-grid" class="stats-grid"></div>
+        <div id="funnel-panel" class="funnel-panel"></div>
+      </div>
+
+      <div id="panel-store" class="panel">
+        <h3>Контакти магазину</h3>
+        <p class="hint">
+          <b>Клієнти</b> бачать телефон і адресу в редакторі.<br>
+          <b>Консультант</b> отримує заявки в окремий Telegram-чат (не в діалог клієнта з ботом).
+        </p>
+        <form id="store-form">
+          <input id="store-name" placeholder="Назва магазину">
+          <input id="store-phone" placeholder="Телефон +380...">
+          <input id="store-address" placeholder="Адреса">
+          <input id="store-telegram" placeholder="Telegram @username (для клієнтів)">
+          <label class="field-label">Chat ID групи «Заявки» (рекомендовано)</label>
+          <input id="store-leads-group" placeholder="-1001234567890">
+          <p class="hint small">Створіть групу → додайте бота → візьміть ID через @RawDataBot або @getidsbot</p>
+          <label class="field-label">Chat ID менеджера (особистий, необов'язково)</label>
+          <input id="store-manager-chat" placeholder="473268205">
+          <p class="hint small">Якщо тестуєте самі — заявка змішається з чатом бота. Краще використовуйте групу вище.</p>
+          <label class="field-label">Telegram-бот магазину</label>
+          <input id="store-bot-token" type="password" placeholder="Токен від @BotFather" autocomplete="new-password">
+          <p id="store-bot-hint" class="hint small"></p>
+          <p class="hint small owner-only">Кожен магазин — свій бот зі своєю назвою в @BotFather. Після зміни токена перезапустіть <code>docker compose up -d bot</code>.</p>
+          <button type="submit" class="btn btn-primary">Зберегти</button>
+          <button type="button" id="store-test-notify" class="btn btn-success owner-only">Надіслати тест у Telegram</button>
+        </form>
+        <p class="hint">Якщо тест не приходить — відкрийте вашого бота в Telegram і натисніть <b>/start</b>, потім повторіть.</p>
+      </div>
+
+      <div id="panel-leads" class="panel">
+        <h3>Заявки від клієнтів</h3>
+        <div class="leads-toolbar">
+          <label>
+            Статус
+            <select id="leads-status-filter">
+              <option value="">Всі</option>
+              <option value="new">Нові</option>
+              <option value="contacted">В обробці</option>
+              <option value="closed">Закриті</option>
+            </select>
+          </label>
+          <label>
+            Сортування
+            <select id="leads-sort">
+              <option value="date_desc">Дата — спочатку новіші</option>
+              <option value="date_asc">Дата — спочатку старіші</option>
+              <option value="amount_desc">Сума — від більшої</option>
+              <option value="amount_asc">Сума — від меншої</option>
+            </select>
+          </label>
+          <label>
+            З дати
+            <input type="date" id="leads-from">
+          </label>
+          <label>
+            По дату
+            <input type="date" id="leads-to">
+          </label>
+          <button type="button" id="leads-apply-filter" class="btn">Застосувати</button>
+          <button type="button" id="leads-clear-dates" class="btn">Скинути дати</button>
+          <span class="hint small">Дати за київським часом</span>
+          <button type="button" id="leads-export-csv" class="btn btn-primary">Експорт CSV</button>
+        </div>
+        <table id="leads-table"><thead><tr><th>Дата</th><th>Клієнт</th><th>Телефон</th><th>Візуалізація</th><th>Площа</th><th>Сума</th><th>Статус</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div id="panel-inbox" class="panel">
+        <h3>Вхідні проєкти</h3>
+        <table id="inbox-table"><thead><tr><th>ID</th><th>Клієнт</th><th>Візуалізація</th><th>Площа</th><th>Вибір</th><th>Сума</th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div id="panel-brands" class="panel">
+        <div class="owner-only">
+        <h3>Додати / оновити бренд</h3>
+        <form id="brand-form">
+          <input type="hidden" id="brand-edit-id">
+          <input id="brand-name" placeholder="Назва" required>
+          <input id="brand-country" placeholder="Країна">
+          <label>Витрата (м² з 1 л, 1 шар)
+            <input id="brand-coverage" type="number" step="0.1" min="1" value="10">
+          </label>
+          <label>Шарів за замовчуванням
+            <input id="brand-coats" type="number" min="1" max="5" value="2">
+          </label>
+          <label>Тип покриття
+            <select id="brand-finish" required>
+              <option value="matte">Матова</option>
+              <option value="silk_matte">Шовк.-матова</option>
+              <option value="gloss">Глянцева</option>
+            </select>
+          </label>
+          <h4>Фасування (обʼєм + ціна за банку)</h4>
+          <div id="brand-packs-editor"></div>
+          <button type="button" class="btn" id="brand-add-pack">+ Додати фасування</button>
+          <button type="submit" class="btn btn-primary">Зберегти бренд</button>
+          <button type="button" class="btn" id="brand-form-reset">Скасувати</button>
+        </form>
+        </div>
+        <p id="brands-editor-hint" class="hint small hidden">Редактор може переглядати бренди, але не змінювати їх.</p>
+        <table id="brands-table"><thead><tr><th>Назва</th><th>Тип</th><th>м²/л</th><th>Фасування</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div id="panel-colors" class="panel">
+        <div class="colors-toolbar">
+          <label>
+            Виробник
+            <select id="colors-filter-brand"></select>
+          </label>
+        </div>
+        <h3>Додати колір</h3>
+        <form id="color-form">
+          <select id="color-brand-id"></select>
+          <input id="color-name" placeholder="Назва" required>
+          <input id="color-hex" placeholder="#FFFFFF" pattern="#[0-9A-Fa-f]{6}" required>
+          <input id="color-code" placeholder="Код виробника">
+          <select id="color-tint-base">
+            <option value="">База (авто)</option>
+            <option value="A">A — світла</option>
+            <option value="B">B — середня</option>
+            <option value="C">C — глибока</option>
+          </select>
+          <input id="color-price" type="number" step="0.01" min="0" placeholder="Ціна ₴/м² (запасний варіант)">
+          <select id="color-category" required>
+            <option value="Білі">Білі</option>
+            <option value="Сірі">Сірі</option>
+            <option value="Бежеві">Бежеві</option>
+            <option value="Коричневі">Коричневі</option>
+            <option value="Зелені">Зелені</option>
+            <option value="Сині">Сині</option>
+            <option value="Жовті">Жовті</option>
+            <option value="Червоні">Червоні</option>
+            <option value="Темні">Темні</option>
+            <option value="Пастельні">Пастельні</option>
+          </select>
+          <button type="submit" class="btn btn-primary">Додати</button>
+        </form>
+        <h4>Кольори вашого каталогу</h4>
+        <table id="colors-table"><thead><tr><th>Назва</th><th>HEX</th><th>Код</th><th>База</th><th>₴/м²</th><th>Категорія</th><th>Наявність</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div id="panel-import" class="panel">
+        <h3>Масовий імпорт кольорів (CSV / XLSX)</h3>
+        <p>Колонки: name, hex, category, brand_name, manufacturer_code</p>
+        <form id="import-form">
+          <select id="import-brand-id"></select>
+          <input id="import-file" type="file" accept=".csv,.xlsx,.xls" required>
+          <button type="submit" class="btn btn-primary">Переглянути</button>
+        </form>
+        <div id="import-preview" class="import-preview"></div>
+        <button id="confirm-import-btn" class="btn btn-success">Підтвердити імпорт</button>
+      </div>
+
+      <div id="panel-materials" class="panel">
+        <h3>Додати декоративний матеріал</h3>
+        <form id="material-form">
+          <input id="material-name" placeholder="Назва (Мокрий шовк)" required>
+          <input id="material-category" placeholder="Категорія">
+          <input id="material-scale" type="number" step="0.1" value="1" placeholder="Масштаб текстури">
+          <button type="submit" class="btn btn-primary">Створити</button>
+        </form>
+        <table id="materials-table"><thead><tr><th>Назва</th><th>Категорія</th><th>Фасування</th><th>Масштаб</th><th>Наявність</th><th></th></tr></thead><tbody></tbody></table>
+        <div id="material-shades-panel" class="material-shades-panel hidden"></div>
+      </div>
+
+      <div id="panel-pricing" class="panel owner-only">
+        <h3>Масова зміна цін</h3>
+        <p class="hint">Змінює базові ціни в каталозі: ₴/м² для фарби, ціни банок і фасування декору. Діє одразу для всіх обраних позицій.</p>
+        <form id="bulk-price-form" class="pricing-form">
+          <label>
+            Каталог
+            <select id="bulk-scope" required>
+              <option value="all">Весь каталог</option>
+              <option value="paint">Уся фарба</option>
+              <option value="decor">Уся декоративка</option>
+              <option value="brand">Бренд фарби</option>
+              <option value="material">Матеріал декору</option>
+            </select>
+          </label>
+          <label id="bulk-target-wrap" class="hidden">
+            Оберіть
+            <select id="bulk-target-id"></select>
+          </label>
+          <label>
+            Операція
+            <select id="bulk-mode" required>
+              <option value="add_uah">Додати ₴ до ціни</option>
+              <option value="sub_uah">Відняти ₴ від ціни</option>
+              <option value="add_percent">Підняти на %</option>
+              <option value="sub_percent">Знизити на %</option>
+            </select>
+          </label>
+          <label>
+            Значення
+            <input id="bulk-value" type="number" step="0.01" min="0.01" placeholder="50" required>
+          </label>
+          <button type="submit" class="btn btn-primary">Застосувати до цін</button>
+        </form>
+
+        <h3 style="margin-top:32px">Знижки</h3>
+        <p class="hint">Знижка не змінює ціну в каталозі — показується клієнту в міні-додатку та враховується в кошторисі. Найконкретніше правило має пріоритет.</p>
+        <form id="discount-form" class="pricing-form">
+          <label>
+            Застосувати до
+            <select id="discount-scope" required>
+              <option value="all">Всього каталогу</option>
+              <option value="paint">Усієї фарби</option>
+              <option value="decor">Усієї декоративки</option>
+              <option value="brand">Бренду фарби</option>
+              <option value="color">Конкретного кольору</option>
+              <option value="material">Матеріалу декору</option>
+              <option value="decor_color">Відтінку декору</option>
+            </select>
+          </label>
+          <label id="discount-brand-wrap" class="hidden">
+            Бренд
+            <select id="discount-brand-id"></select>
+          </label>
+          <label id="discount-color-wrap" class="hidden">
+            Колір
+            <select id="discount-color-id"></select>
+          </label>
+          <label id="discount-material-wrap" class="hidden">
+            Матеріал
+            <select id="discount-material-id"></select>
+          </label>
+          <label id="discount-shade-wrap" class="hidden">
+            Відтінок
+            <select id="discount-shade-id"></select>
+          </label>
+          <label>
+            Знижка, %
+            <input id="discount-percent" type="number" step="0.1" min="0.1" max="100" placeholder="10" required>
+          </label>
+          <label>
+            Назва акції (необовʼязково)
+            <input id="discount-label" type="text" maxlength="255" placeholder="Весняна акція">
+          </label>
+          <button type="submit" class="btn btn-primary">Додати знижку</button>
+        </form>
+        <table id="discounts-table" class="pricing-table">
+          <thead>
+            <tr>
+              <th>Область</th>
+              <th>Ціль</th>
+              <th>Знижка</th>
+              <th>Назва</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="panel-broadcast" class="panel owner-only">
+        <h3>Розсилка клієнтам</h3>
+        <p class="hint">Повідомлення отримають усі, хто колись користувався ботом цього магазину (завантажував фото або залишав заявку).</p>
+        <p id="broadcast-audience" class="hint"><strong>Аудиторія:</strong> …</p>
+        <form id="broadcast-form" class="broadcast-form" enctype="multipart/form-data">
+          <label>
+            Заголовок
+            <input id="broadcast-title" type="text" maxlength="255" placeholder="Напр. Знижка 15% на фарбу" required>
+          </label>
+          <label>
+            Текст
+            <textarea id="broadcast-body" rows="5" placeholder="Опишіть акцію, умови, терміни…" required></textarea>
+          </label>
+          <label>
+            Фото (необовʼязково)
+            <input id="broadcast-image" type="file" accept="image/jpeg,image/png,image/webp">
+          </label>
+          <button type="submit" class="btn btn-primary" id="broadcast-submit">Надіслати розсилку</button>
+        </form>
+        <h4>Історія</h4>
+        <table id="broadcasts-table">
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Заголовок</th>
+              <th>Статус</th>
+              <th>Надіслано</th>
+              <th>Помилки</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
+
+    <div id="lead-detail-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop" id="lead-detail-backdrop"></div>
+      <div class="modal-card modal-card--wide">
+        <div class="modal-header">
+          <h3>Заявка <span id="lead-detail-id"></span></h3>
+          <button type="button" class="btn" id="lead-detail-close" aria-label="Закрити">✕</button>
+        </div>
+        <div class="modal-body" id="lead-detail-body"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/admin/js/app.js?v=9"></script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Admin — AI Wall Visualizer</title>
+  <link rel="stylesheet" href="/platform/css/style.css">
+</head>
+<body>
+  <div id="login-screen">
+    <h2>Супер-адмін</h2>
+    <p class="hint">Керування магазинами та їхніми адмінами</p>
+    <form id="login-form">
+      <input id="login-email" type="email" placeholder="Email" required>
+      <input id="login-password" type="password" placeholder="Пароль" required>
+      <button type="submit" class="btn btn-primary">Увійти</button>
+    </form>
+    <p id="login-error" class="error hidden"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <header>
+      <h1>AI Wall Visualizer — Super Admin</h1>
+      <div class="header-actions">
+        <span id="user-label"></span>
+        <button id="logout-btn">Вийти</button>
+      </div>
+    </header>
+    <main>
+      <div class="tabs">
+        <button data-tab="stats" class="active">Огляд</button>
+        <button data-tab="stores">Магазини</button>
+        <button data-tab="create">Новий магазин</button>
+      </div>
+
+      <div id="panel-stats" class="panel active">
+        <h3>Платформа</h3>
+        <div id="stats-grid" class="stats-grid"></div>
+      </div>
+
+      <div id="panel-stores" class="panel">
+        <h3>Магазини</h3>
+        <table id="stores-table">
+          <thead>
+            <tr>
+              <th>Назва</th>
+              <th>Slug</th>
+              <th>Бот</th>
+              <th>Адміни</th>
+              <th>Проєкти</th>
+              <th>Заявки</th>
+              <th>Статус</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div id="store-detail" class="detail-card hidden">
+          <div class="detail-header">
+            <h3 id="detail-title">Магазин</h3>
+            <button type="button" id="close-store-detail" class="btn btn-muted">✕ Згорнути</button>
+          </div>
+          <form id="store-edit-form">
+            <input type="hidden" id="edit-store-id">
+            <label>Назва <input id="edit-name" required></label>
+            <label>Slug (латиниця) <input id="edit-slug" pattern="[a-z0-9][a-z0-9-]*" required></label>
+            <label>Телефон <input id="edit-phone"></label>
+            <label>Адреса <input id="edit-address"></label>
+            <label>Telegram @username <input id="edit-telegram"></label>
+            <label>Токен бота <input id="edit-bot-token" type="password" placeholder="Новий токен (залиште порожнім щоб не міняти)" autocomplete="new-password"></label>
+            <p id="edit-bot-hint" class="hint small"></p>
+            <label>Chat ID групи заявок <input id="edit-leads-group"></label>
+            <label>Chat ID менеджера <input id="edit-manager-chat"></label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="edit-active"> Активний магазин
+            </label>
+            <button type="submit" class="btn btn-primary">Зберегти магазин</button>
+          </form>
+
+          <h4>Адміни магазину</h4>
+          <table id="admins-table">
+            <thead><tr><th>Email</th><th>Роль</th><th>Статус</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+
+          <h4>Додати адміна</h4>
+          <form id="admin-create-form">
+            <input id="new-admin-email" type="email" placeholder="Email" required>
+            <input id="new-admin-password" type="password" placeholder="Пароль (мін. 6)" minlength="6" required>
+            <select id="new-admin-role">
+              <option value="owner">Власник</option>
+              <option value="editor">Редактор</option>
+            </select>
+            <button type="submit" class="btn btn-success">Створити адміна</button>
+          </form>
+
+          <div id="store-catalog" class="catalog-section">
+            <div class="detail-header">
+              <h4>Каталог фарби</h4>
+              <button type="button" id="toggle-catalog" class="btn btn-muted">Згорнути каталог</button>
+            </div>
+            <div id="catalog-body">
+              <div class="catalog-toolbar">
+                <label>
+                  Виробник / лінійка
+                  <select id="catalog-brand-filter"></select>
+                </label>
+              </div>
+              <table id="catalog-colors-table">
+                <thead>
+                  <tr>
+                    <th>Колір</th>
+                    <th>Код</th>
+                    <th>₴/м²</th>
+                    <th>Наявність</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+
+              <h4>Додати колір у каталог</h4>
+              <form id="catalog-color-form">
+                <select id="catalog-color-brand" required></select>
+                <input id="catalog-color-name" placeholder="Назва" required>
+                <input id="catalog-color-hex" placeholder="#FFFFFF" pattern="#[0-9A-Fa-f]{6}" required>
+                <input id="catalog-color-code" placeholder="Код виробника">
+                <input id="catalog-color-price" type="number" step="0.01" min="0" placeholder="Ціна ₴/м²">
+                <select id="catalog-color-category" required>
+                  <option value="Білі">Білі</option>
+                  <option value="Сірі">Сірі</option>
+                  <option value="Бежеві">Бежеві</option>
+                  <option value="Коричневі">Коричневі</option>
+                  <option value="Зелені">Зелені</option>
+                  <option value="Сині">Сині</option>
+                  <option value="Жовті">Жовті</option>
+                  <option value="Червоні">Червоні</option>
+                  <option value="Темні">Темні</option>
+                  <option value="Пастельні">Пастельні</option>
+                </select>
+                <button type="submit" class="btn btn-success">Додати в каталог</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-create" class="panel">
+        <h3>Новий магазин</h3>
+        <form id="create-store-form">
+          <label>Назва магазину <input id="create-name" required placeholder="Салон фарби Кольор"></label>
+          <label>Slug (для API/бота) <input id="create-slug" pattern="[a-z0-9][a-z0-9-]*" required placeholder="kolor-salon"></label>
+          <p class="hint small">Латиниця, малі літери, дефіс. Наприклад: <code>farba-kyiv</code></p>
+          <label>Токен Telegram-бота <input id="create-bot-token" type="password" placeholder="Від @BotFather"></label>
+          <label>Телефон <input id="create-phone" placeholder="+380..."></label>
+          <label>Адреса <input id="create-address"></label>
+          <label>Telegram @username <input id="create-telegram"></label>
+          <hr>
+          <p class="hint">Перший адмін магазину (необов'язково — можна додати пізніше)</p>
+          <label>Email адміна <input id="create-admin-email" type="email"></label>
+          <label>Пароль адміна <input id="create-admin-password" type="password" minlength="6"></label>
+          <button type="submit" class="btn btn-primary">Створити магазин</button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script src="/platform/js/app.js"></script>
+</body>
+</html>

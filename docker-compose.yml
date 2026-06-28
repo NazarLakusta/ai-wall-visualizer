@@ -1,0 +1,127 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: wallviz
+      POSTGRES_PASSWORD: wallviz
+      POSTGRES_DB: wallviz
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallviz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: >
+      sh -c "pip install -q fpdf2 &&
+      (test -f /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf || (apt-get update -qq && apt-get install -y -qq fonts-dejavu-core)) &&
+      alembic upgrade head &&
+      python /scripts/seed_test_project.py || true &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./storage:/app/storage
+      - ./models:/app/models
+      - ./scripts:/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.bot.main
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./storage:/app/storage
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./storage:/app/storage
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  cleanup:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.services.cleanup_runner
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ops:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.ops.main
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./mini-app:/usr/share/nginx/html/app:ro
+      - ./admin:/usr/share/nginx/html/admin:ro
+      - ./platform-admin:/usr/share/nginx/html/platform:ro
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
