@@ -164,35 +164,42 @@ def _process_image(project_id: int) -> None:
             if project.telegram_chat_id:
                 user = db.get(User, project.user_id)
                 bot_token = resolve_bot_token_for_project(db, project)
-                logger.info(
-                    "project_notify_ready",
-                    project_id=project.id,
-                    store_id=project.store_id,
-                    telegram_bot_id=project.telegram_bot_id,
-                    notify_bot_id=bot_id_from_token(bot_token),
-                )
                 token = create_user_token(user.id, user.telegram_id) if user else ""
                 webapp_url = build_webapp_url(project.id, token)
-                asyncio.run(notify_project_status(
-                    project.telegram_chat_id,
-                    project.telegram_message_id,
-                    READY_CTA_TEXT,
-                    webapp_url=webapp_url,
-                    bot_token=bot_token,
-                ))
+                try:
+                    logger.info(
+                        "project_notify_ready",
+                        project_id=project.id,
+                        store_id=project.store_id,
+                        telegram_bot_id=project.telegram_bot_id,
+                        notify_bot_id=bot_id_from_token(bot_token),
+                        webapp_url=webapp_url[:80],
+                    )
+                    asyncio.run(notify_project_status(
+                        project.telegram_chat_id,
+                        project.telegram_message_id,
+                        READY_CTA_TEXT,
+                        webapp_url=webapp_url,
+                        bot_token=bot_token,
+                    ))
+                except Exception:
+                    logger.exception("project_notify_failed", project_id=project.id)
         except Exception as exc:
             logger.exception("ai_processing_failed", project_id=project_id)
             project.status = ProjectStatus.ERROR
             project.error_message = str(exc)
             db.commit()
             if project.telegram_chat_id:
-                bot_token = resolve_bot_token_for_project(db, project)
-                asyncio.run(notify_project_status(
-                    project.telegram_chat_id,
-                    project.telegram_message_id,
-                    f"❌ <b>Помилка обробки:</b> {exc}",
-                    bot_token=bot_token,
-                ))
+                try:
+                    bot_token = resolve_bot_token_for_project(db, project)
+                    asyncio.run(notify_project_status(
+                        project.telegram_chat_id,
+                        project.telegram_message_id,
+                        f"❌ <b>Помилка обробки:</b> {exc}",
+                        bot_token=bot_token,
+                    ))
+                except Exception:
+                    logger.exception("project_error_notify_failed", project_id=project_id)
             try:
                 from app.models import Store
                 from app.services.ops_notify import ops_alert_ai_failed
