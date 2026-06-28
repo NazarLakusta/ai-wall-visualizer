@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Overwrite nginx.conf with working static routing (run on Hetzner server).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+cat > nginx/nginx.conf <<'EOF'
 worker_processes auto;
 
 events {
@@ -63,3 +70,9 @@ http {
         }
     }
 }
+EOF
+
+docker compose up -d --force-recreate nginx
+echo "Testing..."
+curl -sI http://127.0.0.1/platform/ | head -1
+curl -sI http://49.13.8.211/platform/ | head -1 || true
