@@ -34,6 +34,7 @@ from app.schemas import (
     ImportConfirmRequest,
     ImportPreviewResponse,
     ImportPreviewRow,
+    LeadCustomerMessage,
     LeadOut,
     LeadStatusUpdate,
     MaterialCreate,
@@ -49,7 +50,13 @@ from app.schemas import (
 from app.services.pricing import calc_total_price
 from app.services.selection import build_selection_summary, get_active_price_per_sqm
 from app.services.file_validation import validate_image_upload, validate_texture_upload
-from app.services.lead_notify import notify_lead_to_crew, send_test_notifications
+from app.services.lead_notify import (
+    notify_lead_customer_contacted,
+    notify_lead_customer_text,
+    notify_lead_to_crew,
+    send_lead_quote_to_customer,
+    send_test_notifications,
+)
 from app.services.storage import StorageService
 from app.services.brand_ops import brand_out, default_surcharge_for_base, load_brand_with_packs, normalize_paint_finish, normalize_tint_base, paint_finish_label, sync_brand_pack_sizes
 from app.services.store_catalog import color_out
@@ -98,6 +105,9 @@ def _store_settings_out(store: Store) -> StoreSettingsOut:
         manager_telegram_chat_id=store.manager_telegram_chat_id,
         leads_group_chat_id=store.leads_group_chat_id,
         crew_telegram_chat_id=store.crew_telegram_chat_id,
+        business_open_time=store.business_open_time or "09:00",
+        business_close_time=store.business_close_time or "19:00",
+        business_timezone=store.business_timezone or "Europe/Kyiv",
         has_bot_token=bool(token),
         bot_token_hint=hint,
     )
@@ -800,12 +810,15 @@ async def list_store_projects(
     return out
 
 
-def _lead_out(lead: Lead, project: Project | None = None) -> LeadOut:
+def _lead_out(lead: Lead, project: Project | None = None, user: User | None = None) -> LeadOut:
+    if user is None and hasattr(lead, "user") and lead.user is not None:
+        user = lead.user
     return LeadOut(
         id=lead.id,
         project_id=lead.project_id,
         phone=lead.phone,
         customer_name=lead.customer_name,
+        telegram_username=user.username if user else None,
         comment=lead.comment,
         wall_area_sqm=lead.wall_area_sqm,
         estimated_total_uah=lead.estimated_total_uah,
@@ -828,7 +841,7 @@ async def list_leads(
     admin: StoreAdmin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Lead).where(Lead.store_id == admin.store_id)
+    query = select(Lead).where(Lead.store_id == admin.store_id).options(selectinload(Lead.user))
     if status:
         try:
             query = query.where(Lead.status == LeadStatus(status))
@@ -866,7 +879,7 @@ async def list_leads(
     out: list[LeadOut] = []
     for lead in lead_rows:
         project = projects_by_id.get(lead.project_id)
-        out.append(_lead_out(lead, project))
+        out.append(_lead_out(lead, project, lead.user))
     return out
 
 
@@ -880,6 +893,7 @@ async def update_lead_status(
     lead = await db.get(Lead, lead_id)
     if not lead or lead.store_id != admin.store_id:
         raise HTTPException(status_code=404, detail="Lead not found")
+    prev_status = lead.status
     try:
         lead.status = LeadStatus(body.status)
     except ValueError as exc:
@@ -887,7 +901,18 @@ async def update_lead_status(
     await db.commit()
     await db.refresh(lead)
     project = await db.get(Project, lead.project_id)
-    return _lead_out(lead, project)
+    user = await db.get(User, lead.user_id)
+    store = await db.get(Store, admin.store_id)
+
+    if (
+        store
+        and project
+        and lead.status == LeadStatus.CONTACTED
+        and prev_status != LeadStatus.CONTACTED
+    ):
+        await notify_lead_customer_contacted(store, lead, project, user)
+
+    return _lead_out(lead, project, user)
 
 
 @router.get("/leads/{lead_id}/quote")
@@ -902,8 +927,9 @@ async def download_lead_quote(
     store = await db.get(Store, admin.store_id)
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
+    user = await db.get(User, lead.user_id)
     try:
-        pdf_bytes = build_lead_quote_pdf(store, lead)
+        pdf_bytes = build_lead_quote_pdf(store, lead, user.username if user else None)
     except (FileNotFoundError, ImportError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     filename = f"koshtorys-lead-{lead_id}.pdf"
@@ -933,6 +959,80 @@ async def forward_lead_to_crew(
     if not ok:
         raise HTTPException(status_code=502, detail=err or "Не вдалося надіслати бригаді")
     return {"ok": True, "message": "Заявку надіслано бригаді в Telegram"}
+
+
+@router.post("/leads/{lead_id}/notify-customer")
+async def notify_customer_about_lead(
+    lead_id: int,
+    body: LeadCustomerMessage,
+    admin: StoreAdmin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    lead = await db.get(Lead, lead_id)
+    if not lead or lead.store_id != admin.store_id:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    store = await db.get(Store, admin.store_id)
+    project = await db.get(Project, lead.project_id)
+    user = await db.get(User, lead.user_id)
+    if not store or not project:
+        raise HTTPException(status_code=404, detail="Store or project not found")
+    ok = await notify_lead_customer_text(store, lead, project, user, body.message)
+    if not ok:
+        raise HTTPException(
+            status_code=502,
+            detail="Не вдалося надіслати клієнту. Переконайтесь, що він писав боту /start.",
+        )
+    return {"ok": True}
+
+
+@router.post("/leads/{lead_id}/send-quote-customer")
+async def send_quote_pdf_to_customer(
+    lead_id: int,
+    admin: StoreAdmin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    lead = await db.get(Lead, lead_id)
+    if not lead or lead.store_id != admin.store_id:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    store = await db.get(Store, admin.store_id)
+    project = await db.get(Project, lead.project_id)
+    user = await db.get(User, lead.user_id)
+    if not store or not project:
+        raise HTTPException(status_code=404, detail="Store or project not found")
+    try:
+        pdf_bytes = build_lead_quote_pdf(store, lead, user.username if user else None)
+    except (FileNotFoundError, ImportError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    ok = await send_lead_quote_to_customer(store, lead, project, user, pdf_bytes)
+    if not ok:
+        raise HTTPException(
+            status_code=502,
+            detail="Не вдалося надіслати PDF клієнту в Telegram.",
+        )
+    return {"ok": True, "message": "PDF надіслано клієнту в Telegram"}
+
+
+@router.post("/leads/{lead_id}/notify-contacted")
+async def notify_customer_contacted(
+    lead_id: int,
+    admin: StoreAdmin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    lead = await db.get(Lead, lead_id)
+    if not lead or lead.store_id != admin.store_id:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    store = await db.get(Store, admin.store_id)
+    project = await db.get(Project, lead.project_id)
+    user = await db.get(User, lead.user_id)
+    if not store or not project:
+        raise HTTPException(status_code=404, detail="Store not found")
+    ok = await notify_lead_customer_contacted(store, lead, project, user)
+    if not ok:
+        raise HTTPException(status_code=502, detail="Не вдалося надіслати повідомлення клієнту")
+    if lead.status == LeadStatus.NEW:
+        lead.status = LeadStatus.CONTACTED
+        await db.commit()
+    return {"ok": True}
 
 
 def _resolve_export_dates(

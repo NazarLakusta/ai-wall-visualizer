@@ -327,6 +327,9 @@ class StoreSettingsUpdate(BaseModel):
     leads_group_chat_id: int | None = None
     crew_telegram_chat_id: int | None = None
     telegram_bot_token: str | None = None
+    business_open_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    business_close_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    business_timezone: str | None = None
 
 
 class StoreSettingsOut(BaseModel):
@@ -339,6 +342,9 @@ class StoreSettingsOut(BaseModel):
     manager_telegram_chat_id: int | None = None
     leads_group_chat_id: int | None = None
     crew_telegram_chat_id: int | None = None
+    business_open_time: str = "09:00"
+    business_close_time: str = "19:00"
+    business_timezone: str = "Europe/Kyiv"
     has_bot_token: bool = False
     bot_token_hint: str | None = None
 
@@ -375,6 +381,7 @@ class LeadOut(BaseModel):
     project_id: int
     phone: str
     customer_name: str | None
+    telegram_username: str | None = None
     comment: str | None
     wall_area_sqm: float | None
     estimated_total_uah: float | None
@@ -398,10 +405,16 @@ class LeadOut(BaseModel):
 
 class LeadCreateResponse(LeadOut):
     telegram_notified: bool = False
+    customer_ack_text: str | None = None
+    customer_notified: bool = False
 
 
 class LeadStatusUpdate(BaseModel):
     status: str
+
+
+class LeadCustomerMessage(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
 
 
 class BroadcastAudienceOut(BaseModel):

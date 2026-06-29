@@ -63,6 +63,20 @@
           <input id="store-name" placeholder="Назва магазину">
           <input id="store-phone" placeholder="Телефон +380...">
           <input id="store-address" placeholder="Адреса">
+          <h4>Графік роботи (для автоповідомлень клієнту)</h4>
+          <p class="hint small">Після закриття клієнт отримає «зв'яжемось завтра» замість «15 хвилин».</p>
+          <div class="hours-row">
+            <label class="field-label">Відкриття</label>
+            <input id="store-open-time" type="time" value="09:00">
+            <label class="field-label">Закриття</label>
+            <input id="store-close-time" type="time" value="19:00">
+          </div>
+          <label class="field-label">Часовий пояс</label>
+          <select id="store-timezone">
+            <option value="Europe/Kyiv">Київ (Europe/Kyiv)</option>
+            <option value="Europe/Warsaw">Варшава (Europe/Warsaw)</option>
+            <option value="Europe/Bucharest">Бухарест (Europe/Bucharest)</option>
+          </select>
           <input id="store-telegram" placeholder="Telegram @username (для клієнтів)">
           <label class="field-label">Chat ID групи «Заявки» (рекомендовано)</label>
           <input id="store-leads-group" placeholder="-1001234567890">

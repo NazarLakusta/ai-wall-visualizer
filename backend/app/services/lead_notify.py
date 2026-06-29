@@ -3,7 +3,8 @@ from pathlib import Path
 import httpx
 import structlog
 
-from app.models import Lead, Project, Store
+from app.models import Lead, Project, Store, User
+from app.services.store_hours import customer_lead_ack_message, customer_lead_contacted_message
 from app.services.storage import StorageService
 
 logger = structlog.get_logger()
@@ -18,7 +19,7 @@ READY_CTA_TEXT = (
 )
 
 
-def _lead_notification_text(store: Store, lead: Lead, project: Project) -> str:
+def _lead_notification_text(store: Store, lead: Lead, project: Project, user: User | None = None) -> str:
     user_line = lead.customer_name or "Клієнт"
     text = (
         f"📬 <b>Заявка для консультанта</b>\n"
@@ -26,6 +27,8 @@ def _lead_notification_text(store: Store, lead: Lead, project: Project) -> str:
         f"👤 {user_line}\n"
         f"📞 <code>{lead.phone}</code>\n"
     )
+    if user and user.username:
+        text += f"💬 Telegram: @{user.username.lstrip('@')}\n"
     if lead.wall_area_sqm:
         text += f"📐 Площа: <b>{lead.wall_area_sqm:g} м²</b>\n"
     if lead.selection_summary:
@@ -77,7 +80,15 @@ def _original_image_path(project: Project) -> Path | None:
     return path
 
 
-async def notify_lead_created(store: Store, lead: Lead, project: Project) -> bool:
+def _customer_chat_id(project: Project, user: User | None) -> int | None:
+    if project.telegram_chat_id:
+        return int(project.telegram_chat_id)
+    if user and user.telegram_id:
+        return int(user.telegram_id)
+    return None
+
+
+async def notify_lead_created(store: Store, lead: Lead, project: Project, user: User | None = None) -> bool:
     bot_token = _store_bot_token(store)
     if not bot_token:
         logger.info("lead_notify_skipped", store_id=store.id, reason="no token")
@@ -88,7 +99,7 @@ async def notify_lead_created(store: Store, lead: Lead, project: Project) -> boo
         logger.info("lead_notify_skipped", store_id=store.id, reason="no chat ids")
         return False
 
-    text = _lead_notification_text(store, lead, project)
+    text = _lead_notification_text(store, lead, project, user)
     photo_path = _result_image_path(project)
     photo_caption = f"🖼 Результат візуалізації · проєкт #{project.id}"
 
@@ -100,6 +111,109 @@ async def notify_lead_created(store: Store, lead: Lead, project: Project) -> boo
             if await send_manager_photo(chat_id, photo_path, photo_caption, bot_token):
                 ok_any = True
     return ok_any
+
+
+async def notify_lead_customer_ack(
+    store: Store,
+    lead: Lead,
+    project: Project,
+    user: User | None = None,
+) -> bool:
+    bot_token = _store_bot_token(store)
+    chat_id = _customer_chat_id(project, user)
+    if not bot_token or not chat_id:
+        logger.info("lead_customer_ack_skipped", lead_id=lead.id, reason="no token or chat")
+        return False
+    text = customer_lead_ack_message(store, lead.created_at)
+    return await send_manager_message(chat_id, text, bot_token)
+
+
+async def notify_lead_customer_contacted(
+    store: Store,
+    lead: Lead,
+    project: Project,
+    user: User | None = None,
+) -> bool:
+    bot_token = _store_bot_token(store)
+    chat_id = _customer_chat_id(project, user)
+    if not bot_token or not chat_id:
+        return False
+    text = customer_lead_contacted_message(store)
+    return await send_manager_message(chat_id, text, bot_token)
+
+
+async def notify_lead_customer_text(
+    store: Store,
+    lead: Lead,
+    project: Project,
+    user: User | None,
+    message: str,
+) -> bool:
+    bot_token = _store_bot_token(store)
+    chat_id = _customer_chat_id(project, user)
+    if not bot_token or not chat_id:
+        return False
+    return await send_manager_message(chat_id, message.strip(), bot_token)
+
+
+async def send_customer_document(
+    chat_id: int,
+    file_bytes: bytes,
+    filename: str,
+    caption: str,
+    bot_token: str,
+) -> bool:
+    if not bot_token or not file_bytes:
+        return False
+    url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            url,
+            data={"chat_id": str(int(chat_id)), "caption": caption[:1024], "parse_mode": "HTML"},
+            files={"document": (filename, file_bytes, "application/pdf")},
+        )
+        if resp.status_code == 200:
+            return True
+        logger.warning(
+            "telegram_document_failed",
+            chat_id=chat_id,
+            status=resp.status_code,
+            body=resp.text[:300],
+        )
+        return False
+
+
+async def send_lead_quote_to_customer(
+    store: Store,
+    lead: Lead,
+    project: Project,
+    user: User | None,
+    pdf_bytes: bytes,
+) -> bool:
+    bot_token = _store_bot_token(store)
+    chat_id = _customer_chat_id(project, user)
+    if not bot_token or not chat_id:
+        return False
+    caption = f"📄 Кошторис від <b>{store.name}</b>"
+    filename = f"koshtorys-{lead.id}.pdf"
+    return await send_customer_document(chat_id, pdf_bytes, filename, caption, bot_token)
+
+
+def customer_ack_plain_text(store: Store) -> str:
+    """Plain text for mini-app alert (no HTML)."""
+    from app.services.store_hours import business_hours_label, is_store_open, next_contact_phrase
+
+    if is_store_open(store):
+        return (
+            f"Дякуємо за заявку! {store.name} отримав ваш запит. "
+            "Консультант зателефонує протягом 15 хвилин."
+        )
+    when = next_contact_phrase(store).replace("<b>", "").replace("</b>", "")
+    hours = business_hours_label(store)
+    return (
+        f"Дякуємо за заявку! Зараз магазин не працює. "
+        f"Ми зв'яжемось з вами {when}. Графік: {hours}."
+    )
 
 
 def _crew_lead_text(store: Store, lead: Lead, project: Project) -> str:

@@ -286,6 +286,9 @@ async function loadStoreSettings() {
   document.getElementById("store-name").value = store.name || "";
   document.getElementById("store-phone").value = store.phone || "";
   document.getElementById("store-address").value = store.address || "";
+  document.getElementById("store-open-time").value = store.business_open_time || "09:00";
+  document.getElementById("store-close-time").value = store.business_close_time || "19:00";
+  document.getElementById("store-timezone").value = store.business_timezone || "Europe/Kyiv";
   document.getElementById("store-telegram").value = store.telegram_username || "";
   document.getElementById("store-leads-group").value = store.leads_group_chat_id || "";
   document.getElementById("store-manager-chat").value = store.manager_telegram_chat_id || "";
@@ -316,6 +319,9 @@ async function saveStoreSettings(e) {
     name: document.getElementById("store-name").value,
     phone: document.getElementById("store-phone").value,
     address: document.getElementById("store-address").value,
+    business_open_time: document.getElementById("store-open-time").value || "09:00",
+    business_close_time: document.getElementById("store-close-time").value || "19:00",
+    business_timezone: document.getElementById("store-timezone").value || "Europe/Kyiv",
     telegram_username: document.getElementById("store-telegram").value,
     leads_group_chat_id: groupRaw ? parseInt(groupRaw, 10) : null,
     manager_telegram_chat_id: chatRaw ? parseInt(chatRaw, 10) : null,
@@ -418,6 +424,51 @@ function renderPhotoPair(originalUrl, resultUrl, isTest, mode = "compact") {
   `).join("")}</div>${missingResult && mode === "detail" ? '<p class="hint small">Результат візуалізації не збережено — лише для старих заявок до оновлення.</p>' : ""}`;
 }
 
+function formatTelegramUsername(username) {
+  if (!username) return "—";
+  const clean = String(username).replace(/^@/, "");
+  return `<a href="https://t.me/${escapeHtml(clean)}" target="_blank" rel="noopener">@${escapeHtml(clean)}</a>`;
+}
+
+async function sendLeadQuoteToCustomer(leadId, btn) {
+  const prev = btn?.textContent;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Надсилаємо...";
+  }
+  try {
+    await api(`/admin/leads/${leadId}/send-quote-customer`, { method: "POST" });
+    alert("PDF надіслано клієнту в Telegram");
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  }
+}
+
+async function notifyLeadContacted(leadId, btn) {
+  const prev = btn?.textContent;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Надсилаємо...";
+  }
+  try {
+    await api(`/admin/leads/${leadId}/notify-contacted`, { method: "POST" });
+    alert("Клієнту надіслано: «Ваша заявка в обробці»");
+    loadLeads();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  }
+}
+
 function showLeadDetail(id) {
   const lead = (window._leadsCache || []).find((l) => l.id === id);
   if (!lead) return;
@@ -433,6 +484,7 @@ function showLeadDetail(id) {
     <p><strong>Дата:</strong> ${formatLeadDate(lead.created_at)}</p>
     <p><strong>Клієнт:</strong> ${escapeHtml(lead.customer_name) || "—"}</p>
     <p><strong>Телефон:</strong> <a href="tel:${escapeHtml(lead.phone)}">${escapeHtml(lead.phone)}</a></p>
+    <p><strong>Telegram:</strong> ${formatTelegramUsername(lead.telegram_username)}</p>
     <p><strong>Проєкт:</strong> #${lead.project_id}${testBadge}</p>
     <p><strong>Площа:</strong> ${lead.wall_area_sqm ? lead.wall_area_sqm + " м²" : "—"}</p>
     <p><strong>Сума:</strong> ${lead.estimated_total_uah ? "₴" + Math.round(lead.estimated_total_uah) : "—"}</p>
@@ -444,6 +496,8 @@ function showLeadDetail(id) {
     ${renderPhotoPair(lead.original_url, lead.result_url, lead.is_test, "detail")}
     <div class="lead-actions">
       <button type="button" class="btn btn-primary" id="lead-quote-btn">PDF-кошторис</button>
+      <button type="button" class="btn btn-success" id="lead-send-pdf-btn">Надіслати PDF клієнту</button>
+      <button type="button" class="btn" id="lead-contacted-btn">В обробці → клієнту</button>
     </div>
     <div id="lead-pdf-panel" class="lead-pdf-panel hidden">
       <p id="lead-pdf-status" class="hint hidden"></p>
@@ -460,6 +514,24 @@ function showLeadDetail(id) {
       e.preventDefault();
       e.stopPropagation();
       fetchLeadQuotePdf(lead.id, quoteBtn);
+    });
+  }
+
+  const sendPdfBtn = document.getElementById("lead-send-pdf-btn");
+  if (sendPdfBtn) {
+    sendPdfBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      sendLeadQuoteToCustomer(lead.id, sendPdfBtn);
+    });
+  }
+
+  const contactedBtn = document.getElementById("lead-contacted-btn");
+  if (contactedBtn) {
+    contactedBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      notifyLeadContacted(lead.id, contactedBtn);
     });
   }
 

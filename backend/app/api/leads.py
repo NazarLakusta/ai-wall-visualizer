@@ -5,7 +5,11 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models import Lead, LeadStatus, Project, Store, User
 from app.schemas import LeadCreate, LeadCreateResponse
-from app.services.lead_notify import notify_lead_created, send_manager_message
+from app.services.lead_notify import (
+    customer_ack_plain_text,
+    notify_lead_created,
+    notify_lead_customer_ack,
+)
 from app.services.decor_estimate_db import estimate_decor_for_project
 from app.services.paint_estimate_db import estimate_paint_for_project
 from app.services.pricing import calc_total_price
@@ -70,5 +74,14 @@ async def create_lead(
     await db.refresh(lead)
     await db.refresh(store)
 
-    notified = await notify_lead_created(store, lead, project)
-    return LeadCreateResponse.model_validate(lead).model_copy(update={"telegram_notified": notified})
+    manager_notified = await notify_lead_created(store, lead, project, user)
+    customer_notified = await notify_lead_customer_ack(store, lead, project, user)
+    ack_text = customer_ack_plain_text(store)
+    return LeadCreateResponse.model_validate(lead).model_copy(
+        update={
+            "telegram_notified": manager_notified,
+            "customer_notified": customer_notified,
+            "customer_ack_text": ack_text,
+            "telegram_username": user.username,
+        }
+    )

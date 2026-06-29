@@ -849,7 +849,9 @@ async function submitLead() {
     });
     document.getElementById("lead-modal").classList.add("hidden");
     const tg = window.Telegram?.WebApp;
-    let msg = "✅ Заявку надіслано! Консультант зв'яжеться з вами.";
+    let msg = result.customer_ack_text
+      ? `✅ ${result.customer_ack_text}`
+      : "✅ Заявку надіслано! Консультант зв'яжеться з вами.";
     if (result.telegram_notified === false) {
       msg += "\n\n(Сповіщення менеджеру в Telegram не дійшло — заявка збережена в адмінці.)";
     }

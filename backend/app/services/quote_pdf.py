@@ -71,7 +71,7 @@ class _QuotePDF:
         return raw.encode("latin-1")
 
 
-def build_lead_quote_pdf(store: Store, lead: Lead) -> bytes:
+def build_lead_quote_pdf(store: Store, lead: Lead, customer_username: str | None = None) -> bytes:
     pdf = _QuotePDF()
     pdf.add_page()
 
@@ -97,6 +97,8 @@ def build_lead_quote_pdf(store: Store, lead: Lead) -> bytes:
     pdf.section_title("Клієнт")
     pdf.body_line("Ім'я:", lead.customer_name or "—")
     pdf.body_line("Телефон:", lead.phone)
+    if customer_username:
+        pdf.body_line("Telegram:", f"@{customer_username.lstrip('@')}")
     if lead.created_at:
         pdf.body_line("Дата заявки:", lead.created_at.strftime("%d.%m.%Y %H:%M"))
 
