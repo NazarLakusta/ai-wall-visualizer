@@ -18,6 +18,15 @@ from app.services.selection import build_selection_summary, get_active_price_per
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 
+def _pick_snapshot_value(server_value, client_value):
+    if server_value is not None and server_value != "":
+        if isinstance(server_value, (int, float)) and server_value <= 0:
+            pass
+        else:
+            return server_value
+    return client_value
+
+
 @router.post("", response_model=LeadCreateResponse)
 async def create_lead(
     body: LeadCreate,
@@ -32,29 +41,38 @@ async def create_lead(
     if not store:
         raise HTTPException(status_code=400, detail="Store not found")
 
+    area = body.wall_area_sqm if body.wall_area_sqm and body.wall_area_sqm > 0 else project.wall_area_sqm
+    if body.wall_area_sqm and body.wall_area_sqm > 0:
+        project.wall_area_sqm = float(body.wall_area_sqm)
+
     price = await get_active_price_per_sqm(db, project)
     summary = await build_selection_summary(db, project)
 
     paint_estimate = None
-    if project.selected_color_id and project.wall_area_sqm:
+    if project.selected_color_id and area:
         paint_estimate = await estimate_paint_for_project(
-            db, project, project.selected_color_id, project.wall_area_sqm
+            db, project, project.selected_color_id, area
         )
-    elif project.selected_material_id and project.wall_area_sqm:
+    elif project.selected_material_id and area:
         paint_estimate = await estimate_decor_for_project(
             db,
             project,
             project.selected_material_id,
             project.selected_decor_color_id,
-            project.wall_area_sqm,
+            area,
         )
 
     if paint_estimate:
         total = paint_estimate.total_uah
         paint_plan = paint_estimate.summary_detail
     else:
-        total = calc_total_price(price, project.wall_area_sqm)
+        total = calc_total_price(price, area)
         paint_plan = None
+
+    wall_area_sqm = _pick_snapshot_value(area, body.wall_area_sqm)
+    estimated_total_uah = _pick_snapshot_value(total, body.estimated_total_uah)
+    selection_summary = _pick_snapshot_value(summary, body.selection_summary)
+    paint_plan_summary = _pick_snapshot_value(paint_plan, body.paint_plan_summary)
 
     lead = Lead(
         store_id=project.store_id,
@@ -63,10 +81,10 @@ async def create_lead(
         phone=body.phone.strip(),
         customer_name=body.customer_name,
         comment=body.comment,
-        wall_area_sqm=project.wall_area_sqm,
-        estimated_total_uah=total,
-        selection_summary=summary,
-        paint_plan_summary=paint_plan,
+        wall_area_sqm=wall_area_sqm,
+        estimated_total_uah=estimated_total_uah,
+        selection_summary=selection_summary,
+        paint_plan_summary=paint_plan_summary,
         status=LeadStatus.NEW,
     )
     db.add(lead)

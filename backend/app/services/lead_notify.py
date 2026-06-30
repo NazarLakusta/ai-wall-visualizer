@@ -19,6 +19,27 @@ READY_CTA_TEXT = (
 )
 
 
+def _format_uah(amount: float | None) -> str:
+    if amount is None:
+        return "—"
+    return f"₴{amount:,.0f}".replace(",", " ")
+
+
+def _lead_details_block(lead: Lead) -> str:
+    lines: list[str] = []
+    if lead.wall_area_sqm and lead.wall_area_sqm > 0:
+        lines.append(f"📐 Площа: <b>{lead.wall_area_sqm:g} м²</b>")
+    if lead.selection_summary:
+        lines.append(f"🎨 {lead.selection_summary}")
+    if lead.estimated_total_uah is not None and lead.estimated_total_uah > 0:
+        lines.append(f"💰 Разом: <b>{_format_uah(lead.estimated_total_uah)}</b>")
+    if lead.paint_plan_summary:
+        for line in lead.paint_plan_summary.split("\n"):
+            if line.strip():
+                lines.append(f"🪣 {line.strip()}")
+    return "\n".join(lines)
+
+
 def _lead_notification_text(store: Store, lead: Lead, project: Project, user: User | None = None) -> str:
     user_line = lead.customer_name or "Клієнт"
     text = (
@@ -29,16 +50,9 @@ def _lead_notification_text(store: Store, lead: Lead, project: Project, user: Us
     )
     if user and user.username:
         text += f"💬 Telegram: @{user.username.lstrip('@')}\n"
-    if lead.wall_area_sqm:
-        text += f"📐 Площа: <b>{lead.wall_area_sqm:g} м²</b>\n"
-    if lead.selection_summary:
-        text += f"🎨 {lead.selection_summary}\n"
-    if lead.estimated_total_uah:
-        text += f"💰 Разом: <b>₴{lead.estimated_total_uah:,.0f}</b>\n".replace(",", " ")
-    if lead.paint_plan_summary:
-        for line in lead.paint_plan_summary.split("\n"):
-            if line.strip():
-                text += f"🪣 {line.strip()}\n"
+    details = _lead_details_block(lead)
+    if details:
+        text += f"\n{details}\n"
     if lead.comment:
         text += f"💬 {lead.comment}\n"
     text += f"\n🆔 Проєкт #{project.id}"
@@ -225,12 +239,12 @@ def _crew_lead_text(store: Store, lead: Lead, project: Project) -> str:
         f"👤 {user_line}\n"
         f"📞 <code>{lead.phone}</code>\n"
     )
-    if lead.wall_area_sqm:
+    if lead.wall_area_sqm and lead.wall_area_sqm > 0:
         text += f"📐 Площа: <b>{lead.wall_area_sqm:g} м²</b>\n"
     if lead.selection_summary:
         text += f"🎨 {lead.selection_summary}\n"
-    if lead.estimated_total_uah:
-        text += f"💰 Орієнтовно: <b>₴{lead.estimated_total_uah:,.0f}</b>\n".replace(",", " ")
+    if lead.estimated_total_uah is not None and lead.estimated_total_uah > 0:
+        text += f"💰 Орієнтовно: <b>{_format_uah(lead.estimated_total_uah)}</b>\n"
     if lead.paint_plan_summary:
         for line in lead.paint_plan_summary.split("\n"):
             if line.strip():

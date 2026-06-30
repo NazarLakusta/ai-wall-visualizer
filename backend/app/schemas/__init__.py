@@ -374,6 +374,10 @@ class LeadCreate(BaseModel):
     phone: str = Field(min_length=7, max_length=30)
     customer_name: str | None = None
     comment: str | None = None
+    wall_area_sqm: float | None = Field(default=None, gt=0)
+    estimated_total_uah: float | None = Field(default=None, ge=0)
+    selection_summary: str | None = None
+    paint_plan_summary: str | None = None
 
 
 class LeadOut(BaseModel):

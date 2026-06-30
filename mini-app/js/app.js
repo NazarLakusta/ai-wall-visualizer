@@ -251,10 +251,19 @@ function scheduleResultSave() {
   }, 1200);
 }
 
+function readWallAreaSqm() {
+  const fromState = state.wallAreaSqm;
+  if (fromState && fromState > 0) return fromState;
+  const raw = document.getElementById("wall-area")?.value;
+  const fromInput = raw ? parseFloat(raw) : NaN;
+  return fromInput > 0 ? fromInput : null;
+}
+
 async function syncProjectState() {
   if (!state.project?.id) return;
+  const wallAreaSqm = readWallAreaSqm();
   const body = {
-    wall_area_sqm: state.wallAreaSqm,
+    wall_area_sqm: wallAreaSqm,
     selected_finish: state.finish,
     mode: state.mode,
   };
@@ -743,9 +752,24 @@ function renderMaterialColors() {
   updateDecorSelectionInfo();
 }
 
+function buildSelectionSummary() {
+  const parts = [];
+  if (state.mode === "paint" && state.selectedColor) {
+    const brand = getSelectedBrand();
+    if (brand) parts.push(brand.name);
+    parts.push(selectionLine(state.selectedColor));
+    if (state.finish) parts.push(FINISH_LABELS[state.finish] || state.finish);
+  } else if (state.selectedMaterial) {
+    parts.push(state.selectedMaterial.name);
+    if (state.selectedMaterialColor) parts.push(state.selectedMaterialColor.name);
+  }
+  return parts.length ? parts.join(" · ") : null;
+}
+
 function buildLeadSummary() {
   const parts = [];
-  if (state.wallAreaSqm) parts.push(`Площа: ${state.wallAreaSqm} м²`);
+  const area = readWallAreaSqm();
+  if (area) parts.push(`Площа: ${area} м²`);
   if (state.mode === "paint" && state.selectedColor) {
     const brand = getSelectedBrand();
     if (brand) parts.push(brand.name);
@@ -832,11 +856,8 @@ async function submitLead() {
   btn.textContent = "Надсилаємо...";
   try {
     await syncProjectState();
-    try {
-      await window.renderer.persistResult();
-    } catch (err) {
-      console.warn("result snapshot failed", err);
-    }
+    await refreshEstimate();
+    const wallAreaSqm = readWallAreaSqm();
     const result = await api("/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -845,8 +866,17 @@ async function submitLead() {
         phone,
         customer_name: document.getElementById("lead-name").value.trim() || null,
         comment: document.getElementById("lead-comment").value.trim() || null,
+        wall_area_sqm: wallAreaSqm,
+        estimated_total_uah: calcTotal(),
+        selection_summary: buildSelectionSummary(),
+        paint_plan_summary: state.paintEstimate?.summary_detail || null,
       }),
     });
+    try {
+      await window.renderer.persistResult();
+    } catch (err) {
+      console.warn("result snapshot failed", err);
+    }
     document.getElementById("lead-modal").classList.add("hidden");
     const tg = window.Telegram?.WebApp;
     let msg = result.customer_ack_text
