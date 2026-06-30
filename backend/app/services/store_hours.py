@@ -78,24 +78,24 @@ def business_hours_label(store: Store) -> str:
 def customer_lead_ack_message(store: Store, at: datetime | None = None) -> str:
     if is_store_open(store, at):
         return (
-            f"✅ <b>Дякуємо за заявку!</b>\n\n"
-            f"<b>{store.name}</b> отримав ваш запит.\n"
-            f"Консультант зателефонує протягом <b>15 хвилин</b>."
+            f"✨ <b>Дякуємо, що обрали {store.name}!</b>\n\n"
+            f"Ваш запит уже у консультанта.\n"
+            f"Зателефонуємо протягом <b>15 хвилин</b> — допоможемо з кольором і розрахунком."
         )
     when = next_contact_phrase(store, at)
     hours = business_hours_label(store)
     return (
-        f"✅ <b>Дякуємо за заявку!</b>\n\n"
-        f"Зараз <b>{store.name}</b> не працює.\n"
-        f"Ми зв'яжемось з вами {when}.\n\n"
-        f"🕐 Графік роботи: {hours}"
+        f"✨ <b>Дякуємо за ваш запит!</b>\n\n"
+        f"Зараз <b>{store.name}</b> поза графіком — але заявку ми зберегли.\n"
+        f"Передзвонимо вам {when} і все детально розповімо.\n\n"
+        f"🕐 Працюємо: <b>{hours}</b>"
     )
 
 
 def customer_lead_contacted_message(store: Store) -> str:
-    phone_line = f"\n📞 {store.phone}" if store.phone else ""
+    phone_line = f"\n\n📞 Якщо зручніше — {store.phone}" if store.phone else ""
     return (
-        f"📋 <b>Ваша заявка в обробці</b>\n\n"
-        f"Консультант <b>{store.name}</b> уже працює над вашим запитом."
+        f"👋 <b>Вітаємо від {store.name}!</b>\n\n"
+        f"Вашу заявку вже взяв консультант — підбираємо рішення під ваш інтер’єр."
         f"{phone_line}"
     )

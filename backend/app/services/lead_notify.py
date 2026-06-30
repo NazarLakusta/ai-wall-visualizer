@@ -219,14 +219,14 @@ def customer_ack_plain_text(store: Store) -> str:
 
     if is_store_open(store):
         return (
-            f"Дякуємо за заявку! {store.name} отримав ваш запит. "
-            "Консультант зателефонує протягом 15 хвилин."
+            f"Дякуємо, що обрали {store.name}! "
+            "Консультант зателефонує протягом 15 хвилин — допоможемо з кольором і розрахунком."
         )
     when = next_contact_phrase(store).replace("<b>", "").replace("</b>", "")
     hours = business_hours_label(store)
     return (
-        f"Дякуємо за заявку! Зараз магазин не працює. "
-        f"Ми зв'яжемось з вами {when}. Графік: {hours}."
+        f"Дякуємо за ваш запит! Зараз {store.name} поза графіком, але заявку зберегли. "
+        f"Передзвонимо вам {when}. Працюємо: {hours}."
     )
 
 
