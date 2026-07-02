@@ -71,6 +71,14 @@ class PaintFinish(str, enum.Enum):
     GLOSS = "gloss"
 
 
+class ColorCodeSystem(str, enum.Enum):
+    RAL = "ral"
+    NCS = "ncs"
+    MANUFACTURER = "manufacturer"
+    NONE = "none"
+    OTHER = "other"
+
+
 PAINT_FINISH_LABELS: dict[str, str] = {
     PaintFinish.MATTE.value: "Матова",
     PaintFinish.SILK_MATTE.value: "Шовк.-матова",
@@ -205,6 +213,7 @@ class Brand(Base):
     coverage_sqm_per_liter: Mapped[float] = mapped_column(Float, default=10.0)
     recommended_coats: Mapped[int] = mapped_column(default=2)
     paint_finish: Mapped[str] = mapped_column(String(20), default=PaintFinish.MATTE.value)
+    color_code_system: Mapped[str] = mapped_column(String(20), default=ColorCodeSystem.MANUFACTURER.value)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

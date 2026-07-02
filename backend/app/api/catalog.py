@@ -17,6 +17,7 @@ from app.schemas import (
     StorePublicOut,
 )
 from app.services.brand_ops import brand_out
+from app.services.color_codes import search_code_variants
 from app.services.decor_estimate_db import estimate_decor_for_project
 from app.services.paint_estimate_db import estimate_paint_for_project, estimate_to_dict
 from app.services.store_brand_ops import brand_ids_for_store
@@ -163,7 +164,7 @@ async def list_colors(
             StoreColor.active.is_(True),
             Color.active.is_(True),
         )
-        .options(selectinload(StoreColor.color))
+        .options(selectinload(StoreColor.color).selectinload(Color.brand))
     )
     if color_id:
         query = query.where(Color.id == color_id)
@@ -178,9 +179,13 @@ async def list_colors(
     if manufacturer_code:
         query = query.where(Color.manufacturer_code.ilike(f"%{manufacturer_code}%"))
     if search:
-        query = query.where(
-            or_(Color.name.ilike(f"%{search}%"), Color.manufacturer_code.ilike(f"%{search}%"))
-        )
+        terms = search_code_variants(search)
+        clauses = []
+        for term in terms:
+            pattern = f"%{term}%"
+            clauses.append(Color.name.ilike(pattern))
+            clauses.append(Color.manufacturer_code.ilike(pattern))
+        query = query.where(or_(*clauses))
 
     total = await db.scalar(select(func.count()).select_from(query.subquery()))
     listings = await db.scalars(

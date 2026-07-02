@@ -513,17 +513,18 @@ function shortText(text, max = 14) {
 }
 
 function colorSwatchLabel(c) {
-  const code = c.manufacturer_code ? shortText(c.manufacturer_code, 8) : "";
+  const code = c.display_code || c.manufacturer_code;
+  const codeShort = code ? shortText(code, 10) : "";
   const name = shortText(c.name, 10);
   const price = formatPricePerSqm(c.price_per_sqm);
-  const main = code && name ? `${code} · ${name}` : code || name || "—";
+  const main = codeShort && name ? `${codeShort} · ${name}` : codeShort || name || "—";
   return price ? `${main}\n${price}` : main;
 }
 
 function selectionLine(c) {
   if (!c) return "";
-  const code = c.manufacturer_code ? `[${c.manufacturer_code}] ` : "";
-  return `${code}${c.name}`;
+  const code = c.display_code || c.manufacturer_code;
+  return code ? `${code} · ${c.name}` : c.name;
 }
 
 function updatePaintSelectionInfo() {
@@ -537,7 +538,11 @@ function updatePaintSelectionInfo() {
     return;
   }
   const brand = getSelectedBrand();
-  let text = brand ? `${brand.name} · ` : "";
+  let text = brand ? `${brand.name}` : "";
+  if (brand?.color_code_system_label && brand.color_code_system !== "manufacturer") {
+    text += ` (${brand.color_code_system_label})`;
+  }
+  if (text) text += " · ";
   text += selectionLine(state.selectedColor);
   if (brand?.discount_percent) text += ` · акція −${brand.discount_percent}%`;
   const total = calcTotal();
@@ -620,7 +625,7 @@ function createColorItem(c, isSelected, onSelect) {
   const priceHtml = formatPriceHtml(c);
   const stockLine = outOfStock ? '<br><span class="stock-label">немає в наявності</span>' : "";
   label.innerHTML = priceHtml
-    ? `${shortText(c.manufacturer_code || c.name, 12)}<br>${priceHtml}${stockLine}`
+    ? `${shortText(c.display_code || c.manufacturer_code || c.name, 12)}<br>${priceHtml}${stockLine}`
     : colorSwatchLabel(c).replace("\n", "<br>") + stockLine;
   label.title = `${selectionLine(c) || c.name}${c.price_per_sqm ? ` — ${formatPricePerSqm(c.price_per_sqm)}` : ""}${c.discount_percent ? ` (знижка −${c.discount_percent}%)` : ""}${outOfStock ? " (немає в наявності)" : ""}`;
   item.appendChild(swatchWrap);

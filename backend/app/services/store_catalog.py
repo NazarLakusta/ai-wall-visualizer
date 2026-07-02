@@ -4,17 +4,30 @@ from sqlalchemy.orm import selectinload
 
 from app.models import Color, DecorativeColor, Project, StoreColor
 from app.schemas import ColorOut, DecorativeColorOut
+from app.services.color_codes import format_display_code, normalize_code_system
 from app.services.store_discounts import apply_discount_amount
 
 
-def color_out(color: Color, listing: StoreColor, discount_percent: float | None = None) -> ColorOut:
+def color_out(
+    color: Color,
+    listing: StoreColor,
+    discount_percent: float | None = None,
+    *,
+    code_system: str | None = None,
+) -> ColorOut:
     display_price, original_price = apply_discount_amount(listing.price_per_sqm, discount_percent)
+    system = normalize_code_system(code_system)
+    if code_system is None and color.brand is not None:
+        system = normalize_code_system(color.brand.color_code_system)
+    display = format_display_code(system, color.manufacturer_code)
     return ColorOut(
         id=color.id,
         brand_id=color.brand_id,
         name=color.name,
         hex=color.hex,
         manufacturer_code=color.manufacturer_code,
+        display_code=display,
+        code_system=system,
         category=color.category.value if hasattr(color.category, "value") else str(color.category),
         tint_base=color.tint_base,
         base_surcharge_percent=color.base_surcharge_percent or 0.0,

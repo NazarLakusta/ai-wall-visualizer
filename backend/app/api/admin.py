@@ -15,6 +15,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import AdminRole, Brand, BrandPackSize, Color, ColorCategory, DecorativeColor, DecorativeMaterial, Lead, LeadStatus, Project, Store, StoreAdmin, StoreBroadcast, StoreColor, StoreDiscount, User
 from app.services.store_brand_ops import get_store_brand, link_brand_to_store, list_brands_for_store
+from app.services.color_codes import normalize_code_system
 from app.services.material_ops import load_material_with_packs, material_pack_out, sync_material_pack_sizes
 from app.schemas import (
     AdminProjectOut,
@@ -173,6 +174,8 @@ async def admin_create_brand(
     data = body.model_dump(exclude={"pack_sizes"})
     if "paint_finish" in data:
         data["paint_finish"] = normalize_paint_finish(data["paint_finish"])
+    if "color_code_system" in data:
+        data["color_code_system"] = normalize_code_system(data["color_code_system"])
     brand = Brand(**data)
     db.add(brand)
     await db.flush()
@@ -200,6 +203,8 @@ async def admin_update_brand(
     data = body.model_dump(exclude_unset=True, exclude={"pack_sizes"})
     if "paint_finish" in data and data["paint_finish"] is not None:
         data["paint_finish"] = normalize_paint_finish(data["paint_finish"])
+    if "color_code_system" in data and data["color_code_system"] is not None:
+        data["color_code_system"] = normalize_code_system(data["color_code_system"])
     for k, v in data.items():
         setattr(brand, k, v)
     if body.pack_sizes is not None:
@@ -242,7 +247,7 @@ async def admin_list_colors(
             StoreColor.active.is_(True),
             Color.active.is_(True),
         )
-        .options(selectinload(StoreColor.color))
+        .options(selectinload(StoreColor.color).selectinload(Color.brand))
     )
     if brand_id:
         query = query.where(Color.brand_id == brand_id)

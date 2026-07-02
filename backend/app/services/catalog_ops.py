@@ -35,7 +35,7 @@ async def list_store_colors(
             StoreColor.active.is_(True),
             Color.active.is_(True),
         )
-        .options(selectinload(StoreColor.color))
+        .options(selectinload(StoreColor.color).selectinload(Color.brand))
     )
     if brand_id:
         query = query.where(Color.brand_id == brand_id)

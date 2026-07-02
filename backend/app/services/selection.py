@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Brand, Color, DecorativeColor, DecorativeMaterial, Project
 from app.services.brand_ops import paint_finish_label
+from app.services.color_codes import format_display_code
 from app.services.store_catalog import get_store_color
 from app.services.store_discounts import (
     apply_discount_amount,
@@ -26,8 +27,11 @@ async def build_selection_summary(db: AsyncSession, project: Project) -> str | N
         color = await db.get(Color, project.selected_color_id)
         if color:
             brand = await db.get(Brand, color.brand_id)
-            code = color.manufacturer_code or ""
-            label = f"{code} {color.name}".strip()
+            code_system = brand.color_code_system if brand else "manufacturer"
+            display = format_display_code(code_system, color.manufacturer_code)
+            label = color.name
+            if display:
+                label = f"{display} · {color.name}"
             if brand:
                 label = f"{brand.name} — {label}"
                 parts.insert(0, paint_finish_label(brand.paint_finish))

@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 from app.models import Brand, BrandPackSize
 from app.models import PAINT_FINISH_LABELS
 from app.schemas import BrandOut, BrandPackSizeIn, BrandPackSizeOut
+from app.services.color_codes import code_system_label, format_display_code, normalize_code_system
 from app.services.paint_estimate import DEFAULT_BASE_SURCHARGE
 from app.services.store_pack_prices import effective_pack_price
 
@@ -41,6 +42,8 @@ def brand_out(brand: Brand, pack_price_overrides: dict[int, float] | None = None
         recommended_coats=brand.recommended_coats or 2,
         paint_finish=finish,
         paint_finish_label=paint_finish_label(finish),
+        color_code_system=normalize_code_system(brand.color_code_system),
+        color_code_system_label=code_system_label(brand.color_code_system),
         active=brand.active,
         pack_sizes=pack_rows,
     )

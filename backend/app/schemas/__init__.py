@@ -79,6 +79,8 @@ class BrandOut(BaseModel):
     recommended_coats: int = 2
     paint_finish: str = "matte"
     paint_finish_label: str = "Матова"
+    color_code_system: str = "manufacturer"
+    color_code_system_label: str = "Палітра виробника"
     active: bool
     pack_sizes: list[BrandPackSizeOut] = []
     discount_percent: float | None = None
@@ -117,6 +119,8 @@ class ColorOut(BaseModel):
     name: str
     hex: str
     manufacturer_code: str | None
+    display_code: str | None = None
+    code_system: str = "manufacturer"
     category: str
     tint_base: str | None = None
     base_surcharge_percent: float = 0.0
@@ -201,6 +205,10 @@ class BrandCreate(BaseModel):
     coverage_sqm_per_liter: float = Field(default=10.0, gt=0)
     recommended_coats: int = Field(default=2, ge=1, le=5)
     paint_finish: str = Field(default="matte", pattern=r"^(matte|silk_matte|gloss)$")
+    color_code_system: str = Field(
+        default="manufacturer",
+        pattern=r"^(ral|ncs|manufacturer|none|other)$",
+    )
     active: bool = True
     pack_sizes: list[BrandPackSizeIn] = []
 
@@ -212,6 +220,10 @@ class BrandUpdate(BaseModel):
     coverage_sqm_per_liter: float | None = Field(default=None, gt=0)
     recommended_coats: int | None = Field(default=None, ge=1, le=5)
     paint_finish: str | None = Field(default=None, pattern=r"^(matte|silk_matte|gloss)$")
+    color_code_system: str | None = Field(
+        default=None,
+        pattern=r"^(ral|ncs|manufacturer|none|other)$",
+    )
     active: bool | None = None
     pack_sizes: list[BrandPackSizeIn] | None = None
 

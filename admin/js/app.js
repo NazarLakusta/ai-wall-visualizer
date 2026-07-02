@@ -935,6 +935,7 @@ function resetBrandForm() {
   document.getElementById("brand-coverage").value = "10";
   document.getElementById("brand-coats").value = "2";
   document.getElementById("brand-finish").value = "matte";
+  document.getElementById("brand-code-system").value = "manufacturer";
   document.getElementById("brand-packs-editor").innerHTML = "";
 }
 
@@ -945,6 +946,7 @@ function editBrand(brand) {
   document.getElementById("brand-coverage").value = brand.coverage_sqm_per_liter || 10;
   document.getElementById("brand-coats").value = brand.recommended_coats || 2;
   document.getElementById("brand-finish").value = brand.paint_finish || "matte";
+  document.getElementById("brand-code-system").value = brand.color_code_system || "manufacturer";
   const editor = document.getElementById("brand-packs-editor");
   editor.innerHTML = (brand.pack_sizes || []).map((p) => packRowHtml(p)).join("");
   document.getElementById("panel-brands").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -964,6 +966,7 @@ async function loadBrands() {
     return `
     <tr>
       <td>${b.name}</td>
+      <td>${escapeHtml(b.color_code_system_label || "—")}</td>
       <td>${finish}</td>
       <td>${b.coverage_sqm_per_liter || 10} м²/л × ${b.recommended_coats || 2}</td>
       <td>${packs || "—"}</td>
@@ -984,6 +987,32 @@ async function loadBrands() {
   if (importSel) {
     importSel.innerHTML = brands.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
   }
+  updateColorCodeHint();
+}
+
+const COLOR_CODE_HINTS = {
+  ral: "Напр. 7016 (у боті: RAL 7016)",
+  ncs: "Напр. S 0502-Y",
+  manufacturer: "Напр. F487",
+  none: "Не обов'язково",
+  other: "Будь-який код",
+};
+
+function updateColorCodeHint() {
+  const brandId = document.getElementById("color-brand-id")?.value
+    || document.getElementById("colors-filter-brand")?.value;
+  const brand = brandsCache.find((b) => String(b.id) === String(brandId));
+  const hint = document.getElementById("color-code-hint");
+  const input = document.getElementById("color-code");
+  if (!hint) return;
+  if (!brand) {
+    hint.textContent = "Спочатку оберіть бренд — система коду задається в розділі «Бренди»";
+    if (input) input.placeholder = "Код кольору";
+    return;
+  }
+  const sys = brand.color_code_system || "manufacturer";
+  hint.textContent = `${brand.color_code_system_label || sys}: ${COLOR_CODE_HINTS[sys] || ""}`;
+  if (input) input.placeholder = COLOR_CODE_HINTS[sys] || "Код кольору";
 }
 
 async function createBrand(e) {
@@ -999,6 +1028,7 @@ async function createBrand(e) {
     coverage_sqm_per_liter: parseFloat(document.getElementById("brand-coverage").value) || 10,
     recommended_coats: parseInt(document.getElementById("brand-coats").value, 10) || 2,
     paint_finish: document.getElementById("brand-finish").value,
+    color_code_system: document.getElementById("brand-code-system").value,
     pack_sizes: readPackRows(),
   };
   if (editId) {
@@ -1034,16 +1064,18 @@ async function loadColors() {
     || document.getElementById("color-brand-id")?.value;
   const tbody = document.querySelector("#colors-table tbody");
   if (!brandId) {
-    tbody.innerHTML = "<tr><td colspan='8'>Оберіть виробника</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='9'>Оберіть виробника</td></tr>";
     return;
   }
   document.getElementById("color-brand-id").value = brandId;
+  updateColorCodeHint();
   const colors = await api(`/admin/colors?brand_id=${brandId}`);
   tbody.innerHTML = colors.map((c) => `
     <tr>
       <td><span class="swatch" style="background:${c.hex}"></span> ${c.name}</td>
       <td>${c.hex}</td>
       <td>${c.manufacturer_code || ""}</td>
+      <td>${c.display_code || "—"}</td>
       <td>${c.tint_base ? "База " + c.tint_base : "—"}</td>
       <td>${formatColorPrice(c)}</td>
       <td>${c.category}</td>
@@ -1054,7 +1086,7 @@ async function loadColors() {
       </td>
       <td><button class="btn btn-danger" onclick="deleteColor(${c.id})">Приховати</button></td>
     </tr>
-  `).join("") || "<tr><td colspan='8'>Немає кольорів для цього виробника</td></tr>";
+  `).join("") || "<tr><td colspan='9'>Немає кольорів для цього виробника</td></tr>";
 }
 
 async function toggleColorStock(id, inStock) {
@@ -1381,6 +1413,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
   document.getElementById("color-form").onsubmit = createColor;
+  document.getElementById("color-brand-id").onchange = () => {
+    updateColorCodeHint();
+    loadColors();
+  };
   document.getElementById("import-form").onsubmit = previewImport;
   document.getElementById("confirm-import-btn").onclick = confirmImport;
   document.getElementById("material-form").onsubmit = createMaterial;
@@ -1419,6 +1455,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("lead-detail-backdrop").onclick = closeLeadDetail;
   document.getElementById("colors-filter-brand").onchange = () => {
     document.getElementById("color-brand-id").value = document.getElementById("colors-filter-brand").value;
+    updateColorCodeHint();
     loadColors();
   };
   document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => switchTab(b.dataset.tab));

@@ -156,6 +156,16 @@
               <option value="gloss">Глянцева</option>
             </select>
           </label>
+          <label>Система коду кольору
+            <select id="brand-code-system" required>
+              <option value="manufacturer">Палітра виробника (F487, 3D Ginster…)</option>
+              <option value="ral">RAL (вводити 7016, показувати RAL 7016)</option>
+              <option value="ncs">NCS (вводити S 0502-Y)</option>
+              <option value="none">Без коду (лише назва)</option>
+              <option value="other">Інше (код як є)</option>
+            </select>
+          </label>
+          <p class="hint small">Для RAL/NCS у полі кольору можна вводити код без префікса — у боті він додасться автоматично.</p>
           <h4>Фасування (обʼєм + ціна за банку)</h4>
           <div id="brand-packs-editor"></div>
           <button type="button" class="btn" id="brand-add-pack">+ Додати фасування</button>
@@ -164,7 +174,7 @@
         </form>
         </div>
         <p id="brands-editor-hint" class="hint small hidden">Редактор може переглядати бренди, але не змінювати їх.</p>
-        <table id="brands-table"><thead><tr><th>Назва</th><th>Тип</th><th>м²/л</th><th>Фасування</th><th></th></tr></thead><tbody></tbody></table>
+        <table id="brands-table"><thead><tr><th>Назва</th><th>Коди</th><th>Тип</th><th>м²/л</th><th>Фасування</th><th></th></tr></thead><tbody></tbody></table>
       </div>
 
       <div id="panel-colors" class="panel">
@@ -179,7 +189,8 @@
           <select id="color-brand-id"></select>
           <input id="color-name" placeholder="Назва" required>
           <input id="color-hex" placeholder="#FFFFFF" pattern="#[0-9A-Fa-f]{6}" required>
-          <input id="color-code" placeholder="Код виробника">
+          <input id="color-code" placeholder="Код кольору">
+          <p id="color-code-hint" class="hint small">Код згідно системи обраного бренду</p>
           <select id="color-tint-base">
             <option value="">База (авто)</option>
             <option value="A">A — світла</option>
@@ -202,7 +213,7 @@
           <button type="submit" class="btn btn-primary">Додати</button>
         </form>
         <h4>Кольори вашого каталогу</h4>
-        <table id="colors-table"><thead><tr><th>Назва</th><th>HEX</th><th>Код</th><th>База</th><th>₴/м²</th><th>Категорія</th><th>Наявність</th><th></th></tr></thead><tbody></tbody></table>
+        <table id="colors-table"><thead><tr><th>Назва</th><th>HEX</th><th>Код</th><th>Показ у боті</th><th>База</th><th>₴/м²</th><th>Категорія</th><th>Наявність</th><th></th></tr></thead><tbody></tbody></table>
       </div>
 
       <div id="panel-import" class="panel">
