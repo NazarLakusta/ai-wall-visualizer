@@ -40,6 +40,7 @@ class ProjectOut(BaseModel):
     result_url: str | None = None
     wall_area_sqm: float | None = None
     selected_color_id: int | None = None
+    selected_brand_id: int | None = None
     selected_decor_color_id: int | None = None
     selected_material_id: int | None = None
     selected_finish: str | None = None
@@ -81,11 +82,40 @@ class BrandOut(BaseModel):
     paint_finish_label: str = "Матова"
     color_code_system: str = "manufacturer"
     color_code_system_label: str = "Палітра виробника"
+    palettes: list["PaletteOut"] = []
     active: bool
     pack_sizes: list[BrandPackSizeOut] = []
     discount_percent: float | None = None
 
     model_config = {"from_attributes": True}
+
+
+class PaletteOut(BaseModel):
+    id: int
+    name: str
+    code_system: str = "manufacturer"
+    code_system_label: str = "Палітра виробника"
+    active: bool = True
+
+    model_config = {"from_attributes": True}
+
+
+class PaletteCreate(BaseModel):
+    name: str
+    code_system: str = Field(
+        default="manufacturer",
+        pattern=r"^(ral|ncs|manufacturer|none|other)$",
+    )
+    active: bool = True
+
+
+class PaletteUpdate(BaseModel):
+    name: str | None = None
+    code_system: str | None = Field(
+        default=None,
+        pattern=r"^(ral|ncs|manufacturer|none|other)$",
+    )
+    active: bool | None = None
 
 
 class PaintPackLineOut(BaseModel):
@@ -115,7 +145,9 @@ class PaintEstimateOut(BaseModel):
 
 class ColorOut(BaseModel):
     id: int
-    brand_id: int
+    brand_id: int | None = None
+    palette_id: int | None = None
+    palette_name: str | None = None
     name: str
     hex: str
     manufacturer_code: str | None
@@ -209,6 +241,7 @@ class BrandCreate(BaseModel):
         default="manufacturer",
         pattern=r"^(ral|ncs|manufacturer|none|other)$",
     )
+    palette_ids: list[int] = []
     active: bool = True
     pack_sizes: list[BrandPackSizeIn] = []
 
@@ -224,12 +257,13 @@ class BrandUpdate(BaseModel):
         default=None,
         pattern=r"^(ral|ncs|manufacturer|none|other)$",
     )
+    palette_ids: list[int] | None = None
     active: bool | None = None
     pack_sizes: list[BrandPackSizeIn] | None = None
 
 
 class ColorCreate(BaseModel):
-    brand_id: int
+    palette_id: int
     name: str
     hex: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
     manufacturer_code: str | None = None
@@ -297,7 +331,7 @@ class ImportPreviewRow(BaseModel):
     hex: str
     manufacturer_code: str | None
     category: str
-    brand_name: str
+    palette_name: str
     valid: bool
     error: str | None = None
 
@@ -309,7 +343,7 @@ class ImportPreviewResponse(BaseModel):
 
 
 class ImportConfirmRequest(BaseModel):
-    brand_id: int
+    palette_id: int
     rows: list[ImportPreviewRow]
 
 
@@ -366,6 +400,7 @@ class StoreSettingsOut(BaseModel):
 class ProjectStateUpdate(BaseModel):
     wall_area_sqm: float | None = None
     selected_color_id: int | None = None
+    selected_brand_id: int | None = None
     selected_decor_color_id: int | None = None
     selected_material_id: int | None = None
     selected_finish: str | None = None

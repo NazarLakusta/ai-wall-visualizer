@@ -116,6 +116,23 @@ form input, form select { padding: 8px; border: 1px solid #ccc; border-radius: 4
   font-size: 24px;
 }
 
+.palette-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 12px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.palette-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
 .hint.small {
   font-size: 12px;
   margin: 4px 0 10px;

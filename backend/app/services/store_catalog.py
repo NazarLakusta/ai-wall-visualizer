@@ -17,12 +17,18 @@ def color_out(
 ) -> ColorOut:
     display_price, original_price = apply_discount_amount(listing.price_per_sqm, discount_percent)
     system = normalize_code_system(code_system)
-    if code_system is None and color.brand is not None:
-        system = normalize_code_system(color.brand.color_code_system)
+    if code_system is None:
+        if color.palette is not None:
+            system = normalize_code_system(color.palette.code_system)
+        elif color.brand is not None:
+            system = normalize_code_system(color.brand.color_code_system)
     display = format_display_code(system, color.manufacturer_code)
+    palette_name = color.palette.name if color.palette else None
     return ColorOut(
         id=color.id,
         brand_id=color.brand_id,
+        palette_id=color.palette_id,
+        palette_name=palette_name,
         name=color.name,
         hex=color.hex,
         manufacturer_code=color.manufacturer_code,

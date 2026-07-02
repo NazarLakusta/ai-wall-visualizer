@@ -51,7 +51,7 @@ async def create_lead(
     paint_estimate = None
     if project.selected_color_id and area:
         paint_estimate = await estimate_paint_for_project(
-            db, project, project.selected_color_id, area
+            db, project, project.selected_color_id, area, brand_id=project.selected_brand_id
         )
     elif project.selected_material_id and area:
         paint_estimate = await estimate_decor_for_project(

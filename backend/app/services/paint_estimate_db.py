@@ -18,6 +18,7 @@ async def estimate_paint_for_project(
     project: Project,
     color_id: int,
     wall_area_sqm: float | None = None,
+    brand_id: int | None = None,
 ) -> PaintEstimate | None:
     area = wall_area_sqm if wall_area_sqm is not None else project.wall_area_sqm
     if not area or area <= 0:
@@ -28,16 +29,20 @@ async def estimate_paint_for_project(
         return None
     color, _listing = pair
 
+    resolved_brand_id = brand_id or project.selected_brand_id or color.brand_id
+    if not resolved_brand_id:
+        return None
+
     brand = await db.scalar(
         select(Brand)
-        .where(Brand.id == color.brand_id, Brand.active.is_(True))
+        .where(Brand.id == resolved_brand_id, Brand.active.is_(True))
         .options(selectinload(Brand.pack_sizes))
     )
     if not brand:
         return None
 
     discounts = await load_store_discounts(db, project.store_id)
-    discount_percent = resolve_paint_discount_percent(discounts, color.id, color.brand_id)
+    discount_percent = resolve_paint_discount_percent(discounts, color.id, resolved_brand_id)
     pack_overrides = await load_store_pack_price_overrides(db, project.store_id, brand_ids={brand.id})
 
     packs = []

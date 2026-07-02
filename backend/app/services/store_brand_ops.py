@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Brand, StoreBrand
+from app.models import Brand, BrandPalette, Color, ColorPalette, StoreBrand
 
 
 async def get_store_brand(db: AsyncSession, store_id: int, brand_id: int) -> StoreBrand | None:
@@ -36,7 +36,10 @@ async def list_brands_for_store(db: AsyncSession, store_id: int) -> list[Brand]:
             StoreBrand.active.is_(True),
             Brand.active.is_(True),
         )
-        .options(selectinload(Brand.pack_sizes))
+        .options(
+            selectinload(Brand.pack_sizes),
+            selectinload(Brand.palette_links).selectinload(BrandPalette.palette),
+        )
         .order_by(Brand.name)
     )
     return list(brands.all())

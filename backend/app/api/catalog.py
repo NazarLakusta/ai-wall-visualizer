@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import asset_url, get_current_user
 from app.database import get_db
-from app.models import Brand, Color, ColorCategory, DecorativeColor, DecorativeMaterial, Project, Store, StoreColor, User
+from app.models import Brand, BrandPalette, Color, ColorCategory, ColorPalette, DecorativeColor, DecorativeMaterial, Project, Store, StoreColor, User
 from app.schemas import (
     BrandOut,
     CatalogPromotionOut,
@@ -14,12 +14,14 @@ from app.schemas import (
     DecorativeColorOut,
     DecorativeMaterialOut,
     PaintEstimateOut,
+    PaletteOut,
     StorePublicOut,
 )
 from app.services.brand_ops import brand_out
 from app.services.color_codes import search_code_variants
 from app.services.decor_estimate_db import estimate_decor_for_project
 from app.services.paint_estimate_db import estimate_paint_for_project, estimate_to_dict
+from app.services.palette_ops import colors_for_brand_clause, list_palettes_for_brand, palette_out
 from app.services.store_brand_ops import brand_ids_for_store
 from app.services.store_catalog import color_out, decor_color_out
 from app.services.store_pack_prices import load_store_pack_price_overrides
@@ -63,8 +65,9 @@ async def list_brands(
 ):
     project = await _project_for_user(db, project_id, user)
     store_brand_ids = set(await brand_ids_for_store(db, project.store_id))
-    brand_ids = await db.scalars(
-        select(Color.brand_id)
+    brand_ids_from_palettes = await db.scalars(
+        select(BrandPalette.brand_id)
+        .join(Color, Color.palette_id == BrandPalette.palette_id)
         .join(StoreColor, StoreColor.color_id == Color.id)
         .where(
             StoreColor.store_id == project.store_id,
@@ -73,13 +76,31 @@ async def list_brands(
         )
         .distinct()
     )
-    ids = [bid for bid in brand_ids.all() if bid in store_brand_ids]
+    brand_ids_legacy = await db.scalars(
+        select(Color.brand_id)
+        .join(StoreColor, StoreColor.color_id == Color.id)
+        .where(
+            StoreColor.store_id == project.store_id,
+            StoreColor.active.is_(True),
+            Color.active.is_(True),
+            Color.brand_id.is_not(None),
+        )
+        .distinct()
+    )
+    ids = {
+        bid
+        for bid in list(brand_ids_from_palettes.all()) + list(brand_ids_legacy.all())
+        if bid and bid in store_brand_ids
+    }
     if not ids:
         return []
     query = (
         select(Brand)
         .where(Brand.id.in_(ids), Brand.active.is_(True))
-        .options(selectinload(Brand.pack_sizes))
+        .options(
+            selectinload(Brand.pack_sizes),
+            selectinload(Brand.palette_links).selectinload(BrandPalette.palette),
+        )
     )
     if finish:
         from app.services.brand_ops import normalize_paint_finish
@@ -142,10 +163,41 @@ async def list_catalog_promotions(
     return promotions
 
 
+@router.get("/palettes", response_model=list[PaletteOut])
+async def list_palettes(
+    project_id: int,
+    brand_id: int | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    project = await _project_for_user(db, project_id, user)
+    if brand_id:
+        store_brand_ids = set(await brand_ids_for_store(db, project.store_id))
+        if brand_id not in store_brand_ids:
+            raise HTTPException(status_code=404, detail="Brand not found")
+        palettes = await list_palettes_for_brand(db, brand_id)
+        return [palette_out(p) for p in palettes]
+    rows = await db.scalars(
+        select(ColorPalette)
+        .join(Color, Color.palette_id == ColorPalette.id)
+        .join(StoreColor, StoreColor.color_id == Color.id)
+        .where(
+            StoreColor.store_id == project.store_id,
+            StoreColor.active.is_(True),
+            Color.active.is_(True),
+            ColorPalette.active.is_(True),
+        )
+        .distinct()
+        .order_by(ColorPalette.name)
+    )
+    return [palette_out(p) for p in rows.all()]
+
+
 @router.get("/colors", response_model=ColorListResponse)
 async def list_colors(
     project_id: int,
     brand_id: int | None = None,
+    palette_id: int | None = None,
     color_id: int | None = None,
     category: str | None = None,
     search: str | None = None,
@@ -164,12 +216,17 @@ async def list_colors(
             StoreColor.active.is_(True),
             Color.active.is_(True),
         )
-        .options(selectinload(StoreColor.color).selectinload(Color.brand))
+        .options(
+            selectinload(StoreColor.color).selectinload(Color.brand),
+            selectinload(StoreColor.color).selectinload(Color.palette),
+        )
     )
     if color_id:
         query = query.where(Color.id == color_id)
-    if brand_id:
-        query = query.where(Color.brand_id == brand_id)
+    if palette_id:
+        query = query.where(Color.palette_id == palette_id)
+    elif brand_id:
+        query = query.where(colors_for_brand_clause(brand_id))
     if category:
         try:
             cat = ColorCategory(category)
@@ -196,7 +253,11 @@ async def list_colors(
     for row in listings.all():
         if not row.color:
             continue
-        disc = resolve_paint_discount_percent(discounts, row.color.id, row.color.brand_id)
+        disc = resolve_paint_discount_percent(
+            discounts,
+            row.color.id,
+            brand_id or row.color.brand_id,
+        )
         items.append(color_out(row.color, row, disc))
     return ColorListResponse(
         items=items,
@@ -275,19 +336,23 @@ async def paint_estimate(
     project_id: int,
     color_id: int,
     wall_area_sqm: float = Query(..., gt=0),
+    brand_id: int | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     project = await _project_for_user(db, project_id, user)
-    estimate = await estimate_paint_for_project(db, project, color_id, wall_area_sqm)
+    estimate = await estimate_paint_for_project(
+        db, project, color_id, wall_area_sqm, brand_id=brand_id
+    )
     if not estimate:
         raise HTTPException(
             status_code=400,
-            detail="Не вдалося порахувати. Перевірте фасування бренду в адмінці.",
+            detail="Не вдалося порахувати. Перевірте фасування продукту в адмінці.",
         )
     discounts = await load_store_discounts(db, project.store_id)
     color = await db.get(Color, color_id)
-    disc = resolve_paint_discount_percent(discounts, color_id, color.brand_id) if color else None
+    resolved_brand_id = brand_id or project.selected_brand_id or (color.brand_id if color else None)
+    disc = resolve_paint_discount_percent(discounts, color_id, resolved_brand_id) if color else None
     return PaintEstimateOut(**estimate_to_dict(estimate, disc))
 
 

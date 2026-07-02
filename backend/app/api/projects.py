@@ -30,6 +30,7 @@ def _project_out(project: Project) -> ProjectOut:
         result_url=asset_url(project.result_image),
         wall_area_sqm=project.wall_area_sqm,
         selected_color_id=project.selected_color_id,
+        selected_brand_id=project.selected_brand_id,
         selected_decor_color_id=project.selected_decor_color_id,
         selected_material_id=project.selected_material_id,
         selected_finish=project.selected_finish,

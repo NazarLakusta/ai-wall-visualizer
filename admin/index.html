@@ -29,7 +29,8 @@
         <button data-tab="store">Магазин</button>
         <button data-tab="leads">Заявки</button>
         <button data-tab="inbox">Проєкти</button>
-        <button data-tab="brands">Бренди</button>
+        <button data-tab="brands">Продукти</button>
+        <button data-tab="palettes">Палітри</button>
         <button data-tab="colors">Кольори</button>
         <button data-tab="import">Імпорт</button>
         <button data-tab="materials">Декоративка</button>
@@ -138,10 +139,11 @@
 
       <div id="panel-brands" class="panel">
         <div class="owner-only">
-        <h3>Додати / оновити бренд</h3>
+        <h3>Додати / оновити продукт (лінійку фарби)</h3>
+        <p class="hint small">Продукт — це конкретна фарба з ціною та фасовкою (Innen Wunder, Latex Matt…). Кольори підключаються через палітри.</p>
         <form id="brand-form">
           <input type="hidden" id="brand-edit-id">
-          <input id="brand-name" placeholder="Назва" required>
+          <input id="brand-name" placeholder="Назва продукту" required>
           <input id="brand-country" placeholder="Країна">
           <label>Витрата (м² з 1 л, 1 шар)
             <input id="brand-coverage" type="number" step="0.1" min="1" value="10">
@@ -156,41 +158,57 @@
               <option value="gloss">Глянцева</option>
             </select>
           </label>
-          <label>Система коду кольору
-            <select id="brand-code-system" required>
-              <option value="manufacturer">Палітра виробника (F487, 3D Ginster…)</option>
-              <option value="ral">RAL (вводити 7016, показувати RAL 7016)</option>
-              <option value="ncs">NCS (вводити S 0502-Y)</option>
-              <option value="none">Без коду (лише назва)</option>
-              <option value="other">Інше (код як є)</option>
-            </select>
-          </label>
-          <p class="hint small">Для RAL/NCS у полі кольору можна вводити код без префікса — у боті він додасться автоматично.</p>
+          <label>Палітри кольорів для цього продукту</label>
+          <div id="brand-palettes-select" class="palette-checkboxes"></div>
+          <p class="hint small">Оберіть одну або кілька палітр (RAL, NCS, FEIDAL 1000…). Клієнт побачить кольори з цих палітр, коли обере цей продукт.</p>
           <h4>Фасування (обʼєм + ціна за банку)</h4>
           <div id="brand-packs-editor"></div>
           <button type="button" class="btn" id="brand-add-pack">+ Додати фасування</button>
-          <button type="submit" class="btn btn-primary">Зберегти бренд</button>
+          <button type="submit" class="btn btn-primary">Зберегти продукт</button>
           <button type="button" class="btn" id="brand-form-reset">Скасувати</button>
         </form>
         </div>
-        <p id="brands-editor-hint" class="hint small hidden">Редактор може переглядати бренди, але не змінювати їх.</p>
-        <table id="brands-table"><thead><tr><th>Назва</th><th>Коди</th><th>Тип</th><th>м²/л</th><th>Фасування</th><th></th></tr></thead><tbody></tbody></table>
+        <p id="brands-editor-hint" class="hint small hidden">Редактор може переглядати продукти, але не змінювати їх.</p>
+        <table id="brands-table"><thead><tr><th>Назва</th><th>Палітри</th><th>Тип</th><th>м²/л</th><th>Фасування</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div id="panel-palettes" class="panel">
+        <div class="owner-only">
+        <h3>Додати / оновити палітру кольорів</h3>
+        <p class="hint small">Палітра — набір кольорів (RAL, NCS, FEIDAL 1000…). Один RAL можна підключити до кількох продуктів.</p>
+        <form id="palette-form">
+          <input type="hidden" id="palette-edit-id">
+          <input id="palette-name" placeholder="Назва палітри (напр. RAL)" required>
+          <label>Система коду
+            <select id="palette-code-system" required>
+              <option value="ral">RAL</option>
+              <option value="ncs">NCS</option>
+              <option value="manufacturer">Палітра виробника</option>
+              <option value="none">Без коду</option>
+              <option value="other">Інше</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primary">Зберегти палітру</button>
+          <button type="button" class="btn" id="palette-form-reset">Скасувати</button>
+        </form>
+        </div>
+        <table id="palettes-table"><thead><tr><th>Назва</th><th>Коди</th><th></th></tr></thead><tbody></tbody></table>
       </div>
 
       <div id="panel-colors" class="panel">
         <div class="colors-toolbar">
           <label>
-            Виробник
-            <select id="colors-filter-brand"></select>
+            Палітра
+            <select id="colors-filter-palette"></select>
           </label>
         </div>
         <h3>Додати колір</h3>
         <form id="color-form">
-          <select id="color-brand-id"></select>
+          <select id="color-palette-id" required></select>
           <input id="color-name" placeholder="Назва" required>
           <input id="color-hex" placeholder="#FFFFFF" pattern="#[0-9A-Fa-f]{6}" required>
           <input id="color-code" placeholder="Код кольору">
-          <p id="color-code-hint" class="hint small">Код згідно системи обраного бренду</p>
+          <p id="color-code-hint" class="hint small">Код згідно системи обраної палітри</p>
           <select id="color-tint-base">
             <option value="">База (авто)</option>
             <option value="A">A — світла</option>
@@ -218,9 +236,9 @@
 
       <div id="panel-import" class="panel">
         <h3>Масовий імпорт кольорів (CSV / XLSX)</h3>
-        <p>Колонки: name, hex, category, brand_name, manufacturer_code</p>
+        <p>Колонки: name, hex, category, palette_name, manufacturer_code</p>
         <form id="import-form">
-          <select id="import-brand-id"></select>
+          <select id="import-palette-id"></select>
           <input id="import-file" type="file" accept=".csv,.xlsx,.xls" required>
           <button type="submit" class="btn btn-primary">Переглянути</button>
         </form>

@@ -585,18 +585,23 @@ function switchTab(name) {
   if (name === "leads") loadLeads();
   if (name === "inbox") loadInbox();
   if (name === "colors") {
-    loadBrands().then(() => {
-      const filter = document.getElementById("colors-filter-brand");
+    loadPalettes().then(() => {
+      const filter = document.getElementById("colors-filter-palette");
       if (filter && !filter.value && filter.options.length) {
         filter.selectedIndex = 0;
-        document.getElementById("color-brand-id").value = filter.value;
+        document.getElementById("color-palette-id").value = filter.value;
       }
       loadColors();
     });
     return;
   }
   if (name === "materials") loadMaterials();
-  if (name === "brands") loadBrands();
+  if (name === "brands") {
+    loadPalettes().then(() => loadBrands());
+    return;
+  }
+  if (name === "palettes") loadPalettes();
+  if (name === "import") loadPalettes();
   if (name === "pricing") loadPricingPanel();
   if (name === "broadcast") loadBroadcastPanel();
 }
@@ -685,6 +690,118 @@ async function submitBroadcast(e) {
 }
 
 let brandsCache = [];
+let palettesCache = [];
+
+function renderBrandPaletteCheckboxes(selectedIds = []) {
+  const box = document.getElementById("brand-palettes-select");
+  if (!box) return;
+  if (!palettesCache.length) {
+    box.innerHTML = '<p class="hint small">Спочатку створіть палітру в розділі «Палітри»</p>';
+    return;
+  }
+  const selected = new Set(selectedIds.map(String));
+  box.innerHTML = palettesCache.map((p) => `
+    <label class="palette-check">
+      <input type="checkbox" name="brand-palette" value="${p.id}" ${selected.has(String(p.id)) ? "checked" : ""}>
+      ${escapeHtml(p.name)} <span class="hint small">(${escapeHtml(p.code_system_label || p.code_system)})</span>
+    </label>
+  `).join("");
+}
+
+function readBrandPaletteIds() {
+  return [...document.querySelectorAll('input[name="brand-palette"]:checked')].map((el) => parseInt(el.value, 10));
+}
+
+async function loadPalettes() {
+  palettesCache = await api("/admin/palettes");
+  const tbody = document.querySelector("#palettes-table tbody");
+  if (tbody) {
+    tbody.innerHTML = palettesCache.map((p) => {
+      const ownerActions = isOwner()
+        ? `<button class="btn btn-primary" onclick="editPaletteById(${p.id})">Редагувати</button>
+           <button class="btn btn-danger" onclick="deletePalette(${p.id})">Деактивувати</button>`
+        : `<span class="hint small">Лише перегляд</span>`;
+      return `
+      <tr>
+        <td>${escapeHtml(p.name)}</td>
+        <td>${escapeHtml(p.code_system_label || p.code_system)}</td>
+        <td>${ownerActions}</td>
+      </tr>`;
+    }).join("") || "<tr><td colspan='3'>Палітр ще немає</td></tr>";
+  }
+  renderBrandPaletteCheckboxes(readBrandPaletteIds());
+  const paletteOptions = palettesCache.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  const colorSel = document.getElementById("color-palette-id");
+  const filterSel = document.getElementById("colors-filter-palette");
+  const importSel = document.getElementById("import-palette-id");
+  if (colorSel) {
+    const prev = colorSel.value;
+    colorSel.innerHTML = paletteOptions;
+    if (prev) colorSel.value = prev;
+    else if (filterSel?.value) colorSel.value = filterSel.value;
+  }
+  if (filterSel) {
+    const prev = filterSel.value;
+    filterSel.innerHTML = paletteOptions;
+    if (prev) filterSel.value = prev;
+    else if (colorSel?.value) filterSel.value = colorSel.value;
+  }
+  if (importSel) importSel.innerHTML = paletteOptions;
+  updateColorCodeHint();
+}
+
+function resetPaletteForm() {
+  document.getElementById("palette-edit-id").value = "";
+  document.getElementById("palette-form").reset();
+  document.getElementById("palette-code-system").value = "manufacturer";
+}
+
+function editPalette(palette) {
+  document.getElementById("palette-edit-id").value = palette.id;
+  document.getElementById("palette-name").value = palette.name;
+  document.getElementById("palette-code-system").value = palette.code_system || "manufacturer";
+  document.getElementById("panel-palettes").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function editPaletteById(id) {
+  const palette = palettesCache.find((p) => p.id === id);
+  if (palette) editPalette(palette);
+}
+
+async function createPalette(e) {
+  e.preventDefault();
+  if (!isOwner()) {
+    alert("Лише власник може змінювати палітри");
+    return;
+  }
+  const editId = document.getElementById("palette-edit-id").value;
+  const payload = {
+    name: document.getElementById("palette-name").value.trim(),
+    code_system: document.getElementById("palette-code-system").value,
+  };
+  if (editId) {
+    await api(`/admin/palettes/${editId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } else {
+    await api("/admin/palettes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  }
+  resetPaletteForm();
+  await loadPalettes();
+  await loadBrands();
+}
+
+async function deletePalette(id) {
+  if (!confirm("Деактивувати палітру?")) return;
+  await api(`/admin/palettes/${id}`, { method: "DELETE" });
+  loadPalettes();
+}
 let materialsCache = [];
 
 const PRICING_SCOPE_LABELS = {
@@ -935,8 +1052,8 @@ function resetBrandForm() {
   document.getElementById("brand-coverage").value = "10";
   document.getElementById("brand-coats").value = "2";
   document.getElementById("brand-finish").value = "matte";
-  document.getElementById("brand-code-system").value = "manufacturer";
   document.getElementById("brand-packs-editor").innerHTML = "";
+  renderBrandPaletteCheckboxes([]);
 }
 
 function editBrand(brand) {
@@ -946,7 +1063,8 @@ function editBrand(brand) {
   document.getElementById("brand-coverage").value = brand.coverage_sqm_per_liter || 10;
   document.getElementById("brand-coats").value = brand.recommended_coats || 2;
   document.getElementById("brand-finish").value = brand.paint_finish || "matte";
-  document.getElementById("brand-code-system").value = brand.color_code_system || "manufacturer";
+  const paletteIds = (brand.palettes || []).map((p) => p.id);
+  renderBrandPaletteCheckboxes(paletteIds);
   const editor = document.getElementById("brand-packs-editor");
   editor.innerHTML = (brand.pack_sizes || []).map((p) => packRowHtml(p)).join("");
   document.getElementById("panel-brands").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -959,6 +1077,7 @@ async function loadBrands() {
   tbody.innerHTML = brands.map((b) => {
     const packs = (b.pack_sizes || []).map((p) => `${p.label || p.volume_liters + "л"} — ₴${p.price_uah}`).join(", ");
     const finish = b.paint_finish_label || b.paint_finish || "—";
+    const paletteLabels = (b.palettes || []).map((p) => p.name).join(", ") || "—";
     const ownerActions = isOwner()
       ? `<button class="btn btn-primary" onclick="editBrandById(${b.id})">Редагувати</button>
          <button class="btn btn-danger" onclick="deleteBrand(${b.id})">Видалити</button>`
@@ -966,28 +1085,14 @@ async function loadBrands() {
     return `
     <tr>
       <td>${b.name}</td>
-      <td>${escapeHtml(b.color_code_system_label || "—")}</td>
+      <td>${escapeHtml(paletteLabels)}</td>
       <td>${finish}</td>
       <td>${b.coverage_sqm_per_liter || 10} м²/л × ${b.recommended_coats || 2}</td>
       <td>${packs || "—"}</td>
       <td>${ownerActions}</td>
     </tr>`;
   }).join("");
-  const sel = document.getElementById("color-brand-id");
-  const filterSel = document.getElementById("colors-filter-brand");
-  const brandOptions = brands.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
-  if (sel) sel.innerHTML = brandOptions;
-  if (filterSel) {
-    const prev = filterSel.value;
-    filterSel.innerHTML = brandOptions;
-    if (prev) filterSel.value = prev;
-    else if (sel?.value) filterSel.value = sel.value;
-  }
-  const importSel = document.getElementById("import-brand-id");
-  if (importSel) {
-    importSel.innerHTML = brands.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
-  }
-  updateColorCodeHint();
+  renderBrandPaletteCheckboxes(readBrandPaletteIds());
 }
 
 const COLOR_CODE_HINTS = {
@@ -999,19 +1104,19 @@ const COLOR_CODE_HINTS = {
 };
 
 function updateColorCodeHint() {
-  const brandId = document.getElementById("color-brand-id")?.value
-    || document.getElementById("colors-filter-brand")?.value;
-  const brand = brandsCache.find((b) => String(b.id) === String(brandId));
+  const paletteId = document.getElementById("color-palette-id")?.value
+    || document.getElementById("colors-filter-palette")?.value;
+  const palette = palettesCache.find((p) => String(p.id) === String(paletteId));
   const hint = document.getElementById("color-code-hint");
   const input = document.getElementById("color-code");
   if (!hint) return;
-  if (!brand) {
-    hint.textContent = "Спочатку оберіть бренд — система коду задається в розділі «Бренди»";
+  if (!palette) {
+    hint.textContent = "Спочатку оберіть палітру — система коду задається в розділі «Палітри»";
     if (input) input.placeholder = "Код кольору";
     return;
   }
-  const sys = brand.color_code_system || "manufacturer";
-  hint.textContent = `${brand.color_code_system_label || sys}: ${COLOR_CODE_HINTS[sys] || ""}`;
+  const sys = palette.code_system || "manufacturer";
+  hint.textContent = `${palette.code_system_label || sys}: ${COLOR_CODE_HINTS[sys] || ""}`;
   if (input) input.placeholder = COLOR_CODE_HINTS[sys] || "Код кольору";
 }
 
@@ -1028,7 +1133,7 @@ async function createBrand(e) {
     coverage_sqm_per_liter: parseFloat(document.getElementById("brand-coverage").value) || 10,
     recommended_coats: parseInt(document.getElementById("brand-coats").value, 10) || 2,
     paint_finish: document.getElementById("brand-finish").value,
-    color_code_system: document.getElementById("brand-code-system").value,
+    palette_ids: readBrandPaletteIds(),
     pack_sizes: readPackRows(),
   };
   if (editId) {
@@ -1060,16 +1165,16 @@ async function deleteBrand(id) {
 }
 
 async function loadColors() {
-  const brandId = document.getElementById("colors-filter-brand")?.value
-    || document.getElementById("color-brand-id")?.value;
+  const paletteId = document.getElementById("colors-filter-palette")?.value
+    || document.getElementById("color-palette-id")?.value;
   const tbody = document.querySelector("#colors-table tbody");
-  if (!brandId) {
-    tbody.innerHTML = "<tr><td colspan='9'>Оберіть виробника</td></tr>";
+  if (!paletteId) {
+    tbody.innerHTML = "<tr><td colspan='9'>Оберіть палітру</td></tr>";
     return;
   }
-  document.getElementById("color-brand-id").value = brandId;
+  document.getElementById("color-palette-id").value = paletteId;
   updateColorCodeHint();
-  const colors = await api(`/admin/colors?brand_id=${brandId}`);
+  const colors = await api(`/admin/colors?palette_id=${paletteId}`);
   tbody.innerHTML = colors.map((c) => `
     <tr>
       <td><span class="swatch" style="background:${c.hex}"></span> ${c.name}</td>
@@ -1086,7 +1191,7 @@ async function loadColors() {
       </td>
       <td><button class="btn btn-danger" onclick="deleteColor(${c.id})">Приховати</button></td>
     </tr>
-  `).join("") || "<tr><td colspan='9'>Немає кольорів для цього виробника</td></tr>";
+  `).join("") || "<tr><td colspan='9'>Немає кольорів для цієї палітри</td></tr>";
 }
 
 async function toggleColorStock(id, inStock) {
@@ -1104,7 +1209,7 @@ async function createColor(e) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      brand_id: parseInt(document.getElementById("color-brand-id").value),
+      palette_id: parseInt(document.getElementById("color-palette-id").value, 10),
       name: document.getElementById("color-name").value,
       hex: document.getElementById("color-hex").value,
       manufacturer_code: document.getElementById("color-code").value,
@@ -1140,11 +1245,11 @@ async function previewImport(e) {
 
 async function confirmImport() {
   if (!importPreview) return;
-  const brandId = parseInt(document.getElementById("import-brand-id").value);
+  const paletteId = parseInt(document.getElementById("import-palette-id").value, 10);
   await api("/admin/import/colors/confirm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ brand_id: brandId, rows: importPreview.rows }),
+    body: JSON.stringify({ palette_id: paletteId, rows: importPreview.rows }),
   });
   alert("Імпорт завершено");
   loadColors();
@@ -1382,6 +1487,8 @@ async function uploadTexture(materialId) {
   input.click();
 }
 
+window.editPaletteById = editPaletteById;
+window.deletePalette = deletePalette;
 window.editBrandById = editBrandById;
 window.markLead = markLead;
 window.showLeadDetail = showLeadDetail;
@@ -1402,6 +1509,8 @@ window.deleteDecorColor = deleteDecorColor;
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("login-form").onsubmit = login;
   document.getElementById("logout-btn").onclick = logout;
+  document.getElementById("palette-form").onsubmit = createPalette;
+  document.getElementById("palette-form-reset").onclick = resetPaletteForm;
   document.getElementById("brand-form").onsubmit = createBrand;
   document.getElementById("brand-form-reset").onclick = resetBrandForm;
   document.getElementById("brand-add-pack").onclick = () => {
@@ -1413,7 +1522,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
   document.getElementById("color-form").onsubmit = createColor;
-  document.getElementById("color-brand-id").onchange = () => {
+  document.getElementById("color-palette-id").onchange = () => {
     updateColorCodeHint();
     loadColors();
   };
@@ -1453,8 +1562,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("stats-period").onchange = loadStats;
   document.getElementById("lead-detail-close").onclick = closeLeadDetail;
   document.getElementById("lead-detail-backdrop").onclick = closeLeadDetail;
-  document.getElementById("colors-filter-brand").onchange = () => {
-    document.getElementById("color-brand-id").value = document.getElementById("colors-filter-brand").value;
+  document.getElementById("colors-filter-palette").onchange = () => {
+    document.getElementById("color-palette-id").value = document.getElementById("colors-filter-palette").value;
     updateColorCodeHint();
     loadColors();
   };

@@ -191,6 +191,7 @@ class Project(Base):
     wall_area_sqm: Mapped[float | None] = mapped_column(Float)
     editor_opens: Mapped[int] = mapped_column(default=0)
     selected_color_id: Mapped[int | None] = mapped_column(ForeignKey("colors.id"))
+    selected_brand_id: Mapped[int | None] = mapped_column(ForeignKey("brands.id"))
     selected_decor_color_id: Mapped[int | None] = mapped_column(ForeignKey("decorative_colors.id"))
     selected_material_id: Mapped[int | None] = mapped_column(ForeignKey("decorative_materials.id"))
     selected_finish: Mapped[str | None] = mapped_column(String(20))
@@ -220,6 +221,39 @@ class Brand(Base):
     colors: Mapped[list["Color"]] = relationship(back_populates="brand")
     pack_sizes: Mapped[list["BrandPackSize"]] = relationship(back_populates="brand", cascade="all, delete-orphan")
     store_brands: Mapped[list["StoreBrand"]] = relationship(back_populates="brand", cascade="all, delete-orphan")
+    palette_links: Mapped[list["BrandPalette"]] = relationship(
+        back_populates="brand",
+        cascade="all, delete-orphan",
+    )
+
+
+class ColorPalette(Base):
+    __tablename__ = "color_palettes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    code_system: Mapped[str] = mapped_column(String(20), default=ColorCodeSystem.MANUFACTURER.value)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    colors: Mapped[list["Color"]] = relationship(back_populates="palette")
+    brand_links: Mapped[list["BrandPalette"]] = relationship(
+        back_populates="palette",
+        cascade="all, delete-orphan",
+    )
+
+
+class BrandPalette(Base):
+    __tablename__ = "brand_palettes"
+    __table_args__ = (Index("ix_brand_palettes_brand", "brand_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), nullable=False)
+    palette_id: Mapped[int] = mapped_column(ForeignKey("color_palettes.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    brand: Mapped["Brand"] = relationship(back_populates="palette_links")
+    palette: Mapped["ColorPalette"] = relationship(back_populates="brand_links")
 
 
 class BrandPackSize(Base):
@@ -262,10 +296,12 @@ class Color(Base):
     __tablename__ = "colors"
     __table_args__ = (
         Index("ix_colors_brand_category_active", "brand_id", "category", "active"),
+        Index("ix_colors_palette_category_active", "palette_id", "category", "active"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"), nullable=False)
+    brand_id: Mapped[int | None] = mapped_column(ForeignKey("brands.id"), nullable=True)
+    palette_id: Mapped[int | None] = mapped_column(ForeignKey("color_palettes.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     hex: Mapped[str] = mapped_column(String(7), nullable=False)
     manufacturer_code: Mapped[str | None] = mapped_column(String(100))
@@ -280,7 +316,8 @@ class Color(Base):
     in_stock: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    brand: Mapped["Brand"] = relationship(back_populates="colors")
+    brand: Mapped["Brand | None"] = relationship(back_populates="colors")
+    palette: Mapped["ColorPalette | None"] = relationship(back_populates="colors")
     store_colors: Mapped[list["StoreColor"]] = relationship(back_populates="color")
 
 

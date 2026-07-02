@@ -1,6 +1,7 @@
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Brand, Color, DecorativeColor, DecorativeMaterial, Project
+from app.models import Brand, Color, ColorPalette, DecorativeColor, DecorativeMaterial, Project
 from app.services.brand_ops import paint_finish_label
 from app.services.color_codes import format_display_code
 from app.services.store_catalog import get_store_color
@@ -26,8 +27,13 @@ async def build_selection_summary(db: AsyncSession, project: Project) -> str | N
     elif project.selected_color_id:
         color = await db.get(Color, project.selected_color_id)
         if color:
-            brand = await db.get(Brand, color.brand_id)
-            code_system = brand.color_code_system if brand else "manufacturer"
+            brand = None
+            if project.selected_brand_id:
+                brand = await db.get(Brand, project.selected_brand_id)
+            elif color.brand_id:
+                brand = await db.get(Brand, color.brand_id)
+            palette = await db.get(ColorPalette, color.palette_id) if color.palette_id else None
+            code_system = palette.code_system if palette else (brand.color_code_system if brand else "manufacturer")
             display = format_display_code(code_system, color.manufacturer_code)
             label = color.name
             if display:
@@ -58,7 +64,8 @@ async def get_active_price_per_sqm(db: AsyncSession, project: Project) -> float 
         if not pair:
             return None
         color, listing = pair
-        disc = resolve_paint_discount_percent(discounts, color.id, color.brand_id)
+        brand_id = project.selected_brand_id or color.brand_id
+        disc = resolve_paint_discount_percent(discounts, color.id, brand_id)
         price, _ = apply_discount_amount(listing.price_per_sqm, disc)
         return price
     return None

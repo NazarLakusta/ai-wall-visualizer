@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import asset_url, get_current_admin, require_store_owner
 from app.config import settings
 from app.database import get_db
-from app.models import AdminRole, Brand, BrandPackSize, Color, ColorCategory, DecorativeColor, DecorativeMaterial, Lead, LeadStatus, Project, Store, StoreAdmin, StoreBroadcast, StoreColor, StoreDiscount, User
+from app.models import AdminRole, Brand, BrandPackSize, Color, ColorCategory, ColorPalette, DecorativeColor, DecorativeMaterial, Lead, LeadStatus, Project, Store, StoreAdmin, StoreBroadcast, StoreColor, StoreDiscount, User
 from app.services.store_brand_ops import get_store_brand, link_brand_to_store, list_brands_for_store
 from app.services.color_codes import normalize_code_system
 from app.services.material_ops import load_material_with_packs, material_pack_out, sync_material_pack_sizes
@@ -40,6 +40,9 @@ from app.schemas import (
     LeadStatusUpdate,
     MaterialCreate,
     MaterialUpdate,
+    PaletteCreate,
+    PaletteOut,
+    PaletteUpdate,
     StockUpdate,
     StoreSettingsOut,
     StoreSettingsUpdate,
@@ -60,6 +63,7 @@ from app.services.lead_notify import (
 )
 from app.services.storage import StorageService
 from app.services.brand_ops import brand_out, default_surcharge_for_base, load_brand_with_packs, normalize_paint_finish, normalize_tint_base, paint_finish_label, sync_brand_pack_sizes
+from app.services.palette_ops import colors_for_brand_clause, palette_out, sync_brand_palettes
 from app.services.store_catalog import color_out
 from app.services.store_pack_prices import load_store_pack_price_overrides, sync_store_brand_pack_prices
 from app.services.store_discounts import (
@@ -182,6 +186,7 @@ async def admin_create_brand(
     await link_brand_to_store(db, admin.store_id, brand.id)
     await sync_brand_pack_sizes(db, brand, body.pack_sizes)
     await sync_store_brand_pack_prices(db, admin.store_id, brand, body.pack_sizes)
+    await sync_brand_palettes(db, brand, body.palette_ids)
     await db.commit()
     brand = await load_brand_with_packs(db, brand.id)
     pack_overrides = await load_store_pack_price_overrides(db, admin.store_id)
@@ -200,7 +205,7 @@ async def admin_update_brand(
         raise HTTPException(status_code=404, detail="Brand not found")
     if not await get_store_brand(db, admin.store_id, brand_id):
         raise HTTPException(status_code=404, detail="Brand not found")
-    data = body.model_dump(exclude_unset=True, exclude={"pack_sizes"})
+    data = body.model_dump(exclude_unset=True, exclude={"pack_sizes", "palette_ids"})
     if "paint_finish" in data and data["paint_finish"] is not None:
         data["paint_finish"] = normalize_paint_finish(data["paint_finish"])
     if "color_code_system" in data and data["color_code_system"] is not None:
@@ -210,6 +215,8 @@ async def admin_update_brand(
     if body.pack_sizes is not None:
         await sync_brand_pack_sizes(db, brand, body.pack_sizes)
         await sync_store_brand_pack_prices(db, admin.store_id, brand, body.pack_sizes)
+    if body.palette_ids is not None:
+        await sync_brand_palettes(db, brand, body.palette_ids)
     await db.commit()
     brand = await load_brand_with_packs(db, brand_id)
     pack_overrides = await load_store_pack_price_overrides(db, admin.store_id)
@@ -233,9 +240,73 @@ async def admin_delete_brand(
     return {"ok": True}
 
 
+@router.get("/palettes", response_model=list[PaletteOut])
+async def admin_list_palettes(
+    admin: StoreAdmin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = await db.scalars(select(ColorPalette).order_by(ColorPalette.name))
+    return [palette_out(p) for p in rows.all() if p.active]
+
+
+@router.post("/palettes", response_model=PaletteOut)
+async def admin_create_palette(
+    body: PaletteCreate,
+    admin: StoreAdmin = Depends(require_store_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    existing = await db.scalar(select(ColorPalette).where(ColorPalette.name == body.name.strip()))
+    if existing:
+        raise HTTPException(status_code=400, detail="Palette with this name already exists")
+    palette = ColorPalette(
+        name=body.name.strip(),
+        code_system=normalize_code_system(body.code_system),
+        active=body.active,
+    )
+    db.add(palette)
+    await db.commit()
+    await db.refresh(palette)
+    return palette_out(palette)
+
+
+@router.put("/palettes/{palette_id}", response_model=PaletteOut)
+async def admin_update_palette(
+    palette_id: int,
+    body: PaletteUpdate,
+    admin: StoreAdmin = Depends(require_store_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    palette = await db.get(ColorPalette, palette_id)
+    if not palette:
+        raise HTTPException(status_code=404, detail="Palette not found")
+    data = body.model_dump(exclude_unset=True)
+    if "code_system" in data and data["code_system"] is not None:
+        data["code_system"] = normalize_code_system(data["code_system"])
+    for key, value in data.items():
+        setattr(palette, key, value)
+    await db.commit()
+    await db.refresh(palette)
+    return palette_out(palette)
+
+
+@router.delete("/palettes/{palette_id}")
+async def admin_delete_palette(
+    palette_id: int,
+    admin: StoreAdmin = Depends(require_store_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    palette = await db.get(ColorPalette, palette_id)
+    if not palette:
+        raise HTTPException(status_code=404, detail="Palette not found")
+    palette.active = False
+    await db.commit()
+    return {"ok": True}
+
+
 @router.get("/colors", response_model=list[ColorOut])
 async def admin_list_colors(
     brand_id: int | None = None,
+    palette_id: int | None = None,
     admin: StoreAdmin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -247,10 +318,15 @@ async def admin_list_colors(
             StoreColor.active.is_(True),
             Color.active.is_(True),
         )
-        .options(selectinload(StoreColor.color).selectinload(Color.brand))
+        .options(
+            selectinload(StoreColor.color).selectinload(Color.brand),
+            selectinload(StoreColor.color).selectinload(Color.palette),
+        )
     )
-    if brand_id:
-        query = query.where(Color.brand_id == brand_id)
+    if palette_id:
+        query = query.where(Color.palette_id == palette_id)
+    elif brand_id:
+        query = query.where(colors_for_brand_clause(brand_id))
     listings = await db.scalars(query.order_by(Color.name))
     discounts = await load_store_discounts(db, admin.store_id)
     return [
@@ -292,12 +368,12 @@ async def admin_create_color(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid category") from exc
 
-    if not await get_store_brand(db, admin.store_id, body.brand_id):
-        raise HTTPException(status_code=404, detail="Brand not in store catalog")
+    if not await db.get(ColorPalette, body.palette_id):
+        raise HTTPException(status_code=404, detail="Palette not found")
 
     existing = await db.scalar(
         select(Color).where(
-            Color.brand_id == body.brand_id,
+            Color.palette_id == body.palette_id,
             Color.name == body.name,
             Color.hex == body.hex,
         )
@@ -306,7 +382,7 @@ async def admin_create_color(
         color = existing
     else:
         color = Color(
-            brand_id=body.brand_id,
+            palette_id=body.palette_id,
             name=body.name,
             hex=body.hex,
             manufacturer_code=body.manufacturer_code,
@@ -396,11 +472,14 @@ async def import_colors_preview(
 ):
     content = await file.read()
     df = _parse_import_file(content, file.filename or "import.csv")
-    required = {"name", "hex", "category", "brand_name"}
-    if not required.issubset(set(c.lower() for c in df.columns)):
-        raise HTTPException(status_code=400, detail=f"Required columns: {required}")
+    cols = {c.lower() for c in df.columns}
+    if not {"name", "hex", "category"}.issubset(cols):
+        raise HTTPException(status_code=400, detail="Required columns: name, hex, category, palette_name")
+    if "palette_name" not in cols and "brand_name" not in cols:
+        raise HTTPException(status_code=400, detail="Required column: palette_name (or brand_name)")
 
     col_map = {c.lower(): c for c in df.columns}
+    palette_col = col_map.get("palette_name") or col_map.get("brand_name")
     rows: list[ImportPreviewRow] = []
     for _, row in df.iterrows():
         name = str(row[col_map["name"]]).strip()
@@ -408,7 +487,7 @@ async def import_colors_preview(
         if not hex_val.startswith("#"):
             hex_val = f"#{hex_val}"
         category = str(row[col_map["category"]]).strip()
-        brand_name = str(row[col_map["brand_name"]]).strip()
+        palette_name = str(row[palette_col]).strip()
         mfg = str(row[col_map.get("manufacturer_code", "manufacturer_code")]).strip() if "manufacturer_code" in col_map else None
         if mfg == "nan":
             mfg = None
@@ -424,7 +503,7 @@ async def import_colors_preview(
             error = (error + "; " if error else "") + "Invalid category"
         rows.append(ImportPreviewRow(
             name=name, hex=hex_val, manufacturer_code=mfg,
-            category=category, brand_name=brand_name, valid=valid, error=error,
+            category=category, palette_name=palette_name, valid=valid, error=error,
         ))
     valid_count = sum(1 for r in rows if r.valid)
     return ImportPreviewResponse(rows=rows, valid_count=valid_count, invalid_count=len(rows) - valid_count)
@@ -436,18 +515,16 @@ async def import_colors_confirm(
     admin: StoreAdmin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    brand = await db.get(Brand, body.brand_id)
-    if not brand:
-        raise HTTPException(status_code=404, detail="Brand not found")
-    if not await get_store_brand(db, admin.store_id, body.brand_id):
-        raise HTTPException(status_code=404, detail="Brand not in store catalog")
+    palette = await db.get(ColorPalette, body.palette_id)
+    if not palette or not palette.active:
+        raise HTTPException(status_code=404, detail="Palette not found")
     created = 0
     for row in body.rows:
         if not row.valid:
             continue
         existing = await db.scalar(
             select(Color).where(
-                Color.brand_id == body.brand_id,
+                Color.palette_id == body.palette_id,
                 Color.name == row.name,
                 Color.hex == row.hex,
             )
@@ -456,7 +533,7 @@ async def import_colors_confirm(
             color = existing
         else:
             color = Color(
-                brand_id=body.brand_id,
+                palette_id=body.palette_id,
                 name=row.name,
                 hex=row.hex,
                 manufacturer_code=row.manufacturer_code,

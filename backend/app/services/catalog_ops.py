@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Brand, Color, ColorCategory, StoreColor
+from app.services.palette_ops import colors_for_brand_clause
 from app.schemas import ColorCreate, ColorOut, ColorUpdate, StockUpdate
 from app.services.store_catalog import color_out
 
@@ -35,11 +36,14 @@ async def list_store_colors(
             StoreColor.active.is_(True),
             Color.active.is_(True),
         )
-        .options(selectinload(StoreColor.color).selectinload(Color.brand))
+        .options(
+            selectinload(StoreColor.color).selectinload(Color.brand),
+            selectinload(StoreColor.color).selectinload(Color.palette),
+        )
     )
     if brand_id:
-        query = query.where(Color.brand_id == brand_id)
-    listings = await db.scalars(query.order_by(Color.brand_id, Color.name))
+        query = query.where(colors_for_brand_clause(brand_id))
+    listings = await db.scalars(query.order_by(Color.palette_id, Color.name))
     return [color_out(row.color, row) for row in listings.all() if row.color]
 
 
@@ -68,7 +72,7 @@ async def add_color_to_store(db: AsyncSession, store_id: int, body: ColorCreate)
 
     existing = await db.scalar(
         select(Color).where(
-            Color.brand_id == body.brand_id,
+            Color.palette_id == body.palette_id,
             Color.name == body.name,
             Color.hex == body.hex,
         )
@@ -77,7 +81,7 @@ async def add_color_to_store(db: AsyncSession, store_id: int, body: ColorCreate)
         color = existing
     else:
         color = Color(
-            brand_id=body.brand_id,
+            palette_id=body.palette_id,
             name=body.name,
             hex=body.hex,
             manufacturer_code=body.manufacturer_code,
@@ -165,7 +169,7 @@ async def remove_color_from_store(db: AsyncSession, store_id: int, color_id: int
 async def upsert_store_color(
     db: AsyncSession,
     store_id: int,
-    brand_id: int,
+    palette_id: int,
     name: str,
     hex_val: str,
     manufacturer_code: str | None,
@@ -174,15 +178,15 @@ async def upsert_store_color(
     in_stock: bool = True,
 ) -> None:
     color = await db.scalar(
-        select(Color).where(Color.brand_id == brand_id, Color.manufacturer_code == manufacturer_code)
+        select(Color).where(Color.palette_id == palette_id, Color.manufacturer_code == manufacturer_code)
     )
     if not color:
         color = await db.scalar(
-            select(Color).where(Color.brand_id == brand_id, Color.name == name, Color.hex == hex_val)
+            select(Color).where(Color.palette_id == palette_id, Color.name == name, Color.hex == hex_val)
         )
     if not color:
         color = Color(
-            brand_id=brand_id,
+            palette_id=palette_id,
             name=name,
             hex=hex_val,
             manufacturer_code=manufacturer_code,

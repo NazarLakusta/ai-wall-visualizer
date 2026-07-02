@@ -22,7 +22,10 @@ let state = {
   paintEstimate: null,
   mode: "paint",
   finish: "matte",
+  selectedBrandId: null,
+  selectedPaletteId: null,
   brands: [],
+  palettes: [],
   colors: [],
   colorsTotal: 0,
   colorsPage: 1,
@@ -177,6 +180,8 @@ async function refreshEstimate() {
         color_id: String(state.selectedColor.id),
         wall_area_sqm: String(state.wallAreaSqm),
       });
+      const brandId = getSelectedBrandId();
+      if (brandId) q.set("brand_id", String(brandId));
       state.paintEstimate = await api(`/catalog/paint-estimate?${q}`);
     } else if (state.mode === "decor" && state.selectedMaterial?.id) {
       const q = new URLSearchParams({
@@ -269,6 +274,7 @@ async function syncProjectState() {
   };
   if (state.mode === "paint") {
     body.selected_color_id = state.selectedColor?.id ?? null;
+    body.selected_brand_id = getSelectedBrandId();
     body.selected_decor_color_id = null;
     body.selected_material_id = null;
   } else {
@@ -415,9 +421,58 @@ async function loadBrands() {
   renderBrands();
 }
 
+function getSelectedBrandId() {
+  const raw = document.getElementById("brand-filter")?.value;
+  if (raw) return parseInt(raw, 10);
+  return state.selectedBrandId || null;
+}
+
 function getSelectedBrand() {
-  if (!state.selectedColor) return null;
-  return state.brands.find((b) => b.id === state.selectedColor.brand_id) || null;
+  const id = getSelectedBrandId();
+  if (!id) return null;
+  return state.brands.find((b) => b.id === id) || null;
+}
+
+function getSelectedPaletteId() {
+  const sel = document.getElementById("palette-filter");
+  if (!sel || sel.classList.contains("hidden")) return null;
+  const raw = sel.value;
+  return raw ? parseInt(raw, 10) : null;
+}
+
+async function loadPalettesForBrand(brandId) {
+  if (!brandId || !state.project?.id) {
+    state.palettes = [];
+    renderPaletteFilter();
+    return;
+  }
+  const brand = state.brands.find((b) => b.id === brandId);
+  if (brand?.palettes?.length) {
+    state.palettes = brand.palettes;
+  } else {
+    state.palettes = await api(`/catalog/palettes?project_id=${state.project.id}&brand_id=${brandId}`);
+  }
+  renderPaletteFilter();
+}
+
+function renderPaletteFilter() {
+  const sel = document.getElementById("palette-filter");
+  if (!sel) return;
+  if (!state.palettes || state.palettes.length <= 1) {
+    sel.classList.add("hidden");
+    sel.innerHTML = "";
+    state.selectedPaletteId = state.palettes?.[0]?.id || null;
+    return;
+  }
+  sel.classList.remove("hidden");
+  const current = state.selectedPaletteId || state.palettes[0]?.id;
+  sel.innerHTML = state.palettes.map((p) => {
+    const label = p.code_system_label && p.code_system !== "manufacturer"
+      ? `${p.name} (${p.code_system_label})`
+      : p.name;
+    return `<option value="${p.id}" ${p.id === current ? "selected" : ""}>${label}</option>`;
+  }).join("");
+  state.selectedPaletteId = parseInt(sel.value, 10);
 }
 
 function syncFinishFromBrand() {
@@ -438,13 +493,18 @@ async function setFinish(finish, { reload = true } = {}) {
   }
   state.selectedColor = null;
   state.paintEstimate = null;
+  state.selectedBrandId = null;
+  state.selectedPaletteId = null;
   document.getElementById("brand-filter").value = "";
   await loadBrands();
   state.colors = [];
   renderColors();
   if (state.brands.length) {
-    document.getElementById("brand-filter").value = String(state.brands[0].id);
-    await loadColors({ brand_id: state.brands[0].id });
+    const firstId = state.brands[0].id;
+    document.getElementById("brand-filter").value = String(firstId);
+    state.selectedBrandId = firstId;
+    await loadPalettesForBrand(firstId);
+    await loadColors({ brand_id: firstId, palette_id: getSelectedPaletteId() || undefined });
   }
   onSelectionChanged();
   window.renderer.render();
@@ -466,6 +526,7 @@ async function loadColors(filters = {}, { append = false } = {}) {
     page_size: String(COLORS_PAGE_SIZE),
   });
   if (activeFilters.brand_id) params.set("brand_id", activeFilters.brand_id);
+  if (activeFilters.palette_id) params.set("palette_id", activeFilters.palette_id);
   if (activeFilters.category) params.set("category", activeFilters.category);
   if (activeFilters.search) params.set("search", activeFilters.search);
 
@@ -539,7 +600,11 @@ function updatePaintSelectionInfo() {
   }
   const brand = getSelectedBrand();
   let text = brand ? `${brand.name}` : "";
-  if (brand?.color_code_system_label && brand.color_code_system !== "manufacturer") {
+  const paletteId = getSelectedPaletteId();
+  const palette = paletteId ? state.palettes.find((p) => p.id === paletteId) : null;
+  if (palette?.code_system_label && palette.code_system !== "manufacturer") {
+    text += ` · ${palette.code_system_label}`;
+  } else if (brand?.color_code_system_label && brand.color_code_system !== "manufacturer") {
     text += ` (${brand.color_code_system_label})`;
   }
   if (text) text += " · ";
@@ -928,18 +993,38 @@ function setupUI() {
     if (state.materialColors.length) renderMaterialColors();
   };
 
-  document.getElementById("brand-filter").onchange = (e) => {
+  document.getElementById("brand-filter").onchange = async (e) => {
+    const brandId = e.target.value ? parseInt(e.target.value, 10) : null;
+    state.selectedBrandId = brandId;
     updateBrandDiscountHint();
-    loadColors({ brand_id: e.target.value || undefined, category: document.getElementById("category-filter").value || undefined });
+    await loadPalettesForBrand(brandId);
+    loadColors({
+      brand_id: brandId || undefined,
+      palette_id: getSelectedPaletteId() || undefined,
+      category: document.getElementById("category-filter").value || undefined,
+    });
+  };
+  document.getElementById("palette-filter").onchange = (e) => {
+    state.selectedPaletteId = e.target.value ? parseInt(e.target.value, 10) : null;
+    loadColors({
+      brand_id: document.getElementById("brand-filter").value || undefined,
+      palette_id: state.selectedPaletteId || undefined,
+      category: document.getElementById("category-filter").value || undefined,
+    });
   };
   document.getElementById("category-filter").onchange = (e) => {
-    loadColors({ brand_id: document.getElementById("brand-filter").value || undefined, category: e.target.value || undefined });
+    loadColors({
+      brand_id: document.getElementById("brand-filter").value || undefined,
+      palette_id: getSelectedPaletteId() || undefined,
+      category: e.target.value || undefined,
+    });
   };
   document.getElementById("search-input").oninput = (e) => {
     clearTimeout(window._searchTimer);
     window._searchTimer = setTimeout(() => {
       loadColors({
         brand_id: document.getElementById("brand-filter").value || undefined,
+        palette_id: getSelectedPaletteId() || undefined,
         category: document.getElementById("category-filter").value || undefined,
         search: e.target.value || undefined,
       });
@@ -1076,9 +1161,22 @@ async function restoreSavedState() {
     if (color) {
       state.selectedColor = color;
       const brandFilter = document.getElementById("brand-filter");
-      if (color.brand_id) {
-        brandFilter.value = String(color.brand_id);
-        await loadColors({ brand_id: color.brand_id });
+      const brandId = p.selected_brand_id || color.brand_id;
+      if (brandId) {
+        brandFilter.value = String(brandId);
+        state.selectedBrandId = brandId;
+        await loadPalettesForBrand(brandId);
+        if (color.palette_id && state.palettes.some((pl) => pl.id === color.palette_id)) {
+          state.selectedPaletteId = color.palette_id;
+          const paletteFilter = document.getElementById("palette-filter");
+          if (paletteFilter && !paletteFilter.classList.contains("hidden")) {
+            paletteFilter.value = String(color.palette_id);
+          }
+        }
+        await loadColors({
+          brand_id: brandId,
+          palette_id: getSelectedPaletteId() || undefined,
+        });
         state.selectedColor = state.colors.find((c) => c.id === color.id) || color;
       }
       renderColors();
@@ -1116,8 +1214,11 @@ async function init() {
     if (hasSavedSelection(state.project)) {
       await restoreSavedState();
     } else if (state.brands.length) {
-      document.getElementById("brand-filter").value = String(state.brands[0].id);
-      await loadColors({ brand_id: state.brands[0].id });
+      const firstId = state.brands[0].id;
+      document.getElementById("brand-filter").value = String(firstId);
+      state.selectedBrandId = firstId;
+      await loadPalettesForBrand(firstId);
+      await loadColors({ brand_id: firstId, palette_id: getSelectedPaletteId() || undefined });
     } else {
       renderColors();
     }
