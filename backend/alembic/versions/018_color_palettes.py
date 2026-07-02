@@ -39,6 +39,8 @@ def upgrade() -> None:
 
     op.add_column("projects", sa.Column("selected_brand_id", sa.Integer(), sa.ForeignKey("brands.id"), nullable=True))
 
+    op.alter_column("colors", "brand_id", existing_type=sa.Integer(), nullable=True)
+
     conn = op.get_bind()
     brands = conn.execute(
         sa.text(
@@ -78,8 +80,6 @@ def upgrade() -> None:
         )
 
     conn.execute(sa.text("UPDATE colors SET brand_id = NULL WHERE palette_id IS NOT NULL"))
-
-    op.alter_column("colors", "brand_id", existing_type=sa.Integer(), nullable=True)
 
 
 def downgrade() -> None:
