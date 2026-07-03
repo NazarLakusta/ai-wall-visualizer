@@ -47,16 +47,17 @@
           <button data-finish="silk_matte">Шовк.-матова</button>
           <button data-finish="gloss">Глянцева</button>
         </div>
-        <p class="step-label">2. Продукт і колір</p>
+        <p class="step-label">2. Продукт (лінійка фарби)</p>
         <div class="filters">
           <select id="brand-filter"></select>
+          <div id="brand-product-hint" class="brand-product-hint hidden"></div>
           <select id="palette-filter" class="hidden"></select>
           <span id="brand-discount-hint" class="brand-discount-hint hidden"></span>
           <select id="category-filter"></select>
           <input id="search-input" type="search" placeholder="Пошук: назва, RAL 7016, NCS…">
         </div>
         <div class="selection-bar">
-          <span id="paint-selection-info" class="selection-info">Оберіть колір</span>
+          <span id="paint-selection-info" class="selection-info">Спочатку оберіть продукт, потім колір</span>
           <button type="button" id="reset-paint-btn" class="reset-btn">↩ Оригінал</button>
         </div>
         <div id="color-grid" class="color-grid"></div>
@@ -114,6 +115,6 @@
   <script src="/app/js/assets.js"></script>
   <script src="/app/js/guided-filter.js"></script>
   <script src="/app/js/renderer.js"></script>
-  <script src="/app/js/app.js?v=2"></script>
+  <script src="/app/js/app.js?v=3"></script>
 </body>
 </html>

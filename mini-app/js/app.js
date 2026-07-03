@@ -6,6 +6,14 @@ const FINISH_LABELS = {
   gloss: "Глянцева",
 };
 
+const PRODUCT_HINTS = {
+  "KROINZ Latex Matt": "Основна латексна матова — універсальна для стін і стелі.",
+  "KROINZ Innen Wunder": "Матова латексна економ-клас — зазвичай дешевше за Latex Matt.",
+  "KROINZ Seidenmatt Farbe": "Шовковисто-матова — приємний блиск, легше мити.",
+  "KROINZ ExtraWeiße Waschbare": "Стійка до миття. Білу можна колерувати в RAL.",
+  "KROINZ Eco White": "Готова біла фарба — без колерування, лише білий відтінок.",
+};
+
 const COLORS_PAGE_SIZE = 50;
 
 const PROCESS_STATUS_LABELS = {
@@ -175,13 +183,18 @@ async function refreshEstimate() {
   }
   try {
     if (state.mode === "paint" && state.selectedColor?.id) {
+      const brandId = getSelectedBrandId();
+      if (!brandId) {
+        updateCostBar();
+        if (state.mode === "paint") updatePaintSelectionInfo();
+        return;
+      }
       const q = new URLSearchParams({
         project_id: String(state.project.id),
         color_id: String(state.selectedColor.id),
         wall_area_sqm: String(state.wallAreaSqm),
+        brand_id: String(brandId),
       });
-      const brandId = getSelectedBrandId();
-      if (brandId) q.set("brand_id", String(brandId));
       state.paintEstimate = await api(`/catalog/paint-estimate?${q}`);
     } else if (state.mode === "decor" && state.selectedMaterial?.id) {
       const q = new URLSearchParams({
@@ -207,9 +220,18 @@ function updateCostBar() {
   const bar = document.getElementById("cost-bar");
   const totalEl = document.getElementById("cost-total");
   const detailEl = document.getElementById("cost-detail");
+  const labelEl = document.getElementById("cost-label");
   const total = calcTotal();
   const disc = getActiveDiscountPercent();
   const original = getOriginalTotal();
+  const brand = state.mode === "paint" ? getSelectedBrand() : null;
+
+  if (labelEl) {
+    labelEl.innerHTML = brand
+      ? `Орієнтовна вартість<span class="cost-product-name">${escapeHtml(brand.name)}</span>`
+      : "Орієнтовна вартість";
+  }
+
   if (total != null) {
     bar.classList.remove("hidden");
     if (disc && original && original > total) {
@@ -231,8 +253,8 @@ function updateCostBar() {
       detailEl.textContent = detail;
       detailEl.classList.remove("hidden");
     } else {
-      detailEl.textContent = "";
-      detailEl.classList.add("hidden");
+      detailEl.textContent = brand ? "Оберіть колір для точного розрахунку" : "Оберіть продукт і колір";
+      detailEl.classList.remove("hidden");
     }
   } else {
     bar.classList.add("hidden");
@@ -423,8 +445,13 @@ async function loadBrands() {
 
 function getSelectedBrandId() {
   const raw = document.getElementById("brand-filter")?.value;
-  if (raw) return parseInt(raw, 10);
-  return state.selectedBrandId || null;
+  if (!raw) {
+    state.selectedBrandId = null;
+    return null;
+  }
+  const id = parseInt(raw, 10);
+  state.selectedBrandId = Number.isFinite(id) ? id : null;
+  return state.selectedBrandId;
 }
 
 function getSelectedBrand() {
@@ -591,25 +618,28 @@ function selectionLine(c) {
 function updatePaintSelectionInfo() {
   const el = document.getElementById("paint-selection-info");
   if (!el) return;
-  if (!state.selectedColor) {
+  const brand = getSelectedBrand();
+  if (!brand) {
     const n = state.brands.length;
     el.textContent = n
-      ? `Оберіть колір (${FINISH_LABELS[state.finish]}, ${n} лінійок)`
-      : `Немає лінійок: ${FINISH_LABELS[state.finish]}`;
+      ? `Спочатку оберіть продукт (${FINISH_LABELS[state.finish]}, ${n} варіантів)`
+      : `Немає продуктів: ${FINISH_LABELS[state.finish]}`;
     return;
   }
-  const brand = getSelectedBrand();
-  let text = brand ? `${brand.name}` : "";
+  if (!state.selectedColor) {
+    el.textContent = `${brand.name} · оберіть колір`;
+    return;
+  }
+  let text = brand.name;
   const paletteId = getSelectedPaletteId();
   const palette = paletteId ? state.palettes.find((p) => p.id === paletteId) : null;
   if (palette?.code_system_label && palette.code_system !== "manufacturer") {
     text += ` · ${palette.code_system_label}`;
-  } else if (brand?.color_code_system_label && brand.color_code_system !== "manufacturer") {
+  } else if (brand.color_code_system_label && brand.color_code_system !== "manufacturer") {
     text += ` (${brand.color_code_system_label})`;
   }
-  if (text) text += " · ";
-  text += selectionLine(state.selectedColor);
-  if (brand?.discount_percent) text += ` · акція −${brand.discount_percent}%`;
+  text += ` · ${selectionLine(state.selectedColor)}`;
+  if (brand.discount_percent) text += ` · акція −${brand.discount_percent}%`;
   const total = calcTotal();
   if (total != null) text += ` · ${formatUah(total)}`;
   if (state.paintEstimate?.packs?.length) {
@@ -702,27 +732,67 @@ function createColorItem(c, isSelected, onSelect) {
 function renderBrands() {
   const sel = document.getElementById("brand-filter");
   const finishLabel = FINISH_LABELS[state.finish] || state.finish;
+  const prev = sel.value;
   sel.innerHTML = "";
   if (!state.brands.length) {
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = `Немає лінійок (${finishLabel})`;
+    opt.textContent = `Немає продуктів (${finishLabel})`;
     sel.appendChild(opt);
     sel.disabled = true;
+    updateBrandProductHint();
     return;
   }
   sel.disabled = false;
-  const all = document.createElement("option");
-  all.value = "";
-  all.textContent = `Усі лінійки (${finishLabel})`;
-  sel.appendChild(all);
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Оберіть продукт…";
+  sel.appendChild(placeholder);
   state.brands.forEach((b) => {
     const opt = document.createElement("option");
     opt.value = b.id;
-    opt.textContent = b.discount_percent ? `${b.name} (−${b.discount_percent}%)` : b.name;
+    const priceHint = brandPriceHint(b);
+    const finish = b.paint_finish_label || FINISH_LABELS[b.paint_finish] || "";
+    opt.textContent = priceHint
+      ? `${b.name} — ${finish}, ${priceHint}`
+      : (b.discount_percent ? `${b.name} (−${b.discount_percent}%)` : b.name);
     sel.appendChild(opt);
   });
+  if (prev && [...sel.options].some((o) => o.value === prev)) {
+    sel.value = prev;
+  } else if (state.selectedBrandId && state.brands.some((b) => b.id === state.selectedBrandId)) {
+    sel.value = String(state.selectedBrandId);
+  }
   updateBrandDiscountHint();
+  updateBrandProductHint();
+}
+
+function brandPriceHint(brand) {
+  const packs = (brand.pack_sizes || []).filter((p) => p.active !== false && p.price_uah > 0);
+  if (!packs.length) return "";
+  const baseA = packs.filter((p) => !p.tint_base || String(p.tint_base).toUpperCase() === "A");
+  const source = baseA.length ? baseA : packs;
+  const smallest = [...source].sort((a, b) => a.volume_liters - b.volume_liters)[0];
+  const label = smallest.label || `${smallest.volume_liters} л`;
+  return `від ₴${smallest.price_uah} (${label})`;
+}
+
+function updateBrandProductHint() {
+  const el = document.getElementById("brand-product-hint");
+  if (!el) return;
+  const brand = getSelectedBrand();
+  if (!brand) {
+    el.classList.add("hidden");
+    el.textContent = "";
+    return;
+  }
+  const custom = PRODUCT_HINTS[brand.name];
+  const priceLine = brandPriceHint(brand);
+  const meta = `${brand.paint_finish_label} · ${brand.coverage_sqm_per_liter} м²/л · ${brand.recommended_coats} шари`;
+  el.textContent = custom
+    ? `${custom} ${priceLine ? `Ціна ${priceLine}.` : ""}`
+    : `${meta}${priceLine ? ` · ${priceLine}` : ""}`;
+  el.classList.remove("hidden");
 }
 
 function updateBrandDiscountHint() {
@@ -754,7 +824,10 @@ function renderColors() {
     return;
   }
   if (!state.colors.length) {
-    grid.innerHTML = `<div class="color-grid-empty">Оберіть лінійку або змініть фільтр категорії.</div>`;
+    const brand = getSelectedBrand();
+    grid.innerHTML = brand
+      ? `<div class="color-grid-empty">Немає кольорів для «${escapeHtml(brand.name)}». Спробуйте іншу категорію.</div>`
+      : `<div class="color-grid-empty">Спочатку оберіть продукт (лінійку фарби) у списку вище.</div>`;
     updatePaintSelectionInfo();
     updateLoadMoreButton();
     return;
@@ -997,12 +1070,21 @@ function setupUI() {
     const brandId = e.target.value ? parseInt(e.target.value, 10) : null;
     state.selectedBrandId = brandId;
     updateBrandDiscountHint();
-    await loadPalettesForBrand(brandId);
-    loadColors({
-      brand_id: brandId || undefined,
-      palette_id: getSelectedPaletteId() || undefined,
-      category: document.getElementById("category-filter").value || undefined,
-    });
+    updateBrandProductHint();
+    if (brandId) {
+      await loadPalettesForBrand(brandId);
+      await loadColors({
+        brand_id: brandId,
+        palette_id: getSelectedPaletteId() || undefined,
+        category: document.getElementById("category-filter").value || undefined,
+      });
+    } else {
+      state.palettes = [];
+      renderPaletteFilter();
+      state.colors = [];
+      renderColors();
+    }
+    onSelectionChanged();
   };
   document.getElementById("palette-filter").onchange = (e) => {
     state.selectedPaletteId = e.target.value ? parseInt(e.target.value, 10) : null;
@@ -1182,6 +1264,7 @@ async function restoreSavedState() {
       renderColors();
     }
   }
+  updateBrandProductHint();
 }
 
 function hasSavedSelection(project) {
