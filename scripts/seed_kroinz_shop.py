@@ -34,6 +34,13 @@ from app.models import (
 )
 
 RAL_PALETTE_NAME = "RAL"
+DEMO_BRAND_NAMES = {
+    "Innen Wunder",
+    "Latex Matt",
+    "Innen Latex",
+    "Koala",
+    "Latex Matt Gloss",
+}
 
 # (name, finish, coverage m2/l, coats, [(volume_l, price_uah, label), ...])
 PRODUCTS: list[dict] = [
@@ -198,6 +205,46 @@ def link_brand_palette(db, brand_id: int, palette_id: int) -> None:
         db.add(BrandPalette(brand_id=brand_id, palette_id=palette_id))
 
 
+def deactivate_demo_catalog(db, store_id: int) -> tuple[int, int]:
+    """Hide old placeholder catalog entries from this store after seeding KROINZ."""
+    demo_brands = list(db.scalars(select(Brand).where(Brand.name.in_(DEMO_BRAND_NAMES))).all())
+    demo_brand_ids = [brand.id for brand in demo_brands]
+    if not demo_brand_ids:
+        return 0, 0
+
+    disabled_brands = 0
+    links = list(
+        db.scalars(
+            select(StoreBrand).where(
+                StoreBrand.store_id == store_id,
+                StoreBrand.brand_id.in_(demo_brand_ids),
+                StoreBrand.active.is_(True),
+            )
+        ).all()
+    )
+    for link in links:
+        link.active = False
+        disabled_brands += 1
+
+    disabled_colors = 0
+    listings = list(
+        db.scalars(
+            select(StoreColor)
+            .join(Color, Color.id == StoreColor.color_id)
+            .where(
+                StoreColor.store_id == store_id,
+                Color.brand_id.in_(demo_brand_ids),
+                StoreColor.active.is_(True),
+            )
+        ).all()
+    )
+    for listing in listings:
+        listing.active = False
+        disabled_colors += 1
+
+    return disabled_brands, disabled_colors
+
+
 def main() -> None:
     slug = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("STORE_SLUG", "kroinz-shop")
     csv_arg = sys.argv[2] if len(sys.argv) > 2 else "/scripts/ral.csv"
@@ -244,9 +291,11 @@ def main() -> None:
             link_brand_palette(db, brand.id, palette.id)
             print(f"  Product: {cfg['name']} ({cfg['finish']}) -> RAL")
 
+        disabled_brands, disabled_colors = deactivate_demo_catalog(db, store.id)
         db.commit()
         print(f"\nOK: store '{store.name}' ({slug})")
         print(f"  Products: {len(PRODUCTS)}, all linked to palette RAL")
+        print(f"  Demo hidden: {disabled_brands} products, {disabled_colors} colors")
 
 
 if __name__ == "__main__":
