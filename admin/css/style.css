@@ -250,12 +250,18 @@ form input, form select { padding: 8px; border: 1px solid #ccc; border-radius: 4
 }
 
 #brand-form input[type="text"],
-#brand-form input[type="number"] {
+#brand-form input[type="number"],
+#brand-form textarea {
   display: block;
   width: 100%;
-  max-width: 280px;
+  max-width: 480px;
   margin-top: 4px;
   padding: 8px;
+}
+
+#brand-form textarea {
+  min-height: 56px;
+  resize: vertical;
 }
 
 #store-form input {

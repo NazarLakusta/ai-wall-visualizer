@@ -215,6 +215,7 @@ class Brand(Base):
     recommended_coats: Mapped[int] = mapped_column(default=2)
     paint_finish: Mapped[str] = mapped_column(String(20), default=PaintFinish.MATTE.value)
     color_code_system: Mapped[str] = mapped_column(String(20), default=ColorCodeSystem.MANUFACTURER.value)
+    description: Mapped[str | None] = mapped_column(String(500))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

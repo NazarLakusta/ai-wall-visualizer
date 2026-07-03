@@ -110,6 +110,28 @@ async def internal_test_project(
         raise HTTPException(status_code=400, detail="Store not found")
 
     user = await _get_or_create_user(db, telegram_id, username, first_name)
+
+    existing = await db.scalar(
+        select(Project)
+        .where(
+            Project.user_id == user.id,
+            Project.store_id == store.id,
+            Project.is_test.is_(True),
+            Project.status == ProjectStatus.READY,
+            Project.original_image.is_not(None),
+            Project.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(Project.created_at.desc())
+    )
+    if existing:
+        access_token = create_user_token(user.id, user.telegram_id)
+        return {
+            "project_id": existing.id,
+            "status": existing.status.value,
+            "access_token": access_token,
+            "reused": True,
+        }
+
     expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.retention_hours)
     project = Project(
         user_id=user.id,

@@ -65,6 +65,7 @@ PRODUCTS: list[dict] = [
     {
         "name": "KROINZ Latex Matt",
         "finish": "matte",
+        "description": "Основна латексна матова — універсальна для стін і стелі.",
         "coverage": 10.0,
         "coats": 2,
         "packs": [
@@ -79,6 +80,7 @@ PRODUCTS: list[dict] = [
     {
         "name": "KROINZ Innen Wunder",
         "finish": "matte",
+        "description": "Матова латексна економ-клас — зазвичай дешевше за Latex Matt.",
         "coverage": 10.0,
         "coats": 2,
         "packs": [
@@ -93,6 +95,7 @@ PRODUCTS: list[dict] = [
     {
         "name": "KROINZ Seidenmatt Farbe",
         "finish": "silk_matte",
+        "description": "Шовковисто-матова — приємний блиск, легше мити.",
         "coverage": 10.0,
         "coats": 2,
         "packs": [
@@ -107,6 +110,7 @@ PRODUCTS: list[dict] = [
     {
         "name": "KROINZ ExtraWeiße Waschbare",
         "finish": "matte",
+        "description": "Стійка до миття. Білу можна колерувати в RAL.",
         "coverage": 8.0,
         "coats": 2,
         "packs": [
@@ -122,6 +126,7 @@ PRODUCTS: list[dict] = [
     {
         "name": "KROINZ Eco White",
         "finish": "matte",
+        "description": "Готова біла фарба — без колерування, лише білий відтінок.",
         "coverage": 8.0,
         "coats": 2,
         "packs": [
@@ -361,6 +366,7 @@ def main() -> None:
                 brand = Brand(
                     name=cfg["name"],
                     country="DE",
+                    description=cfg.get("description"),
                     paint_finish=cfg["finish"],
                     coverage_sqm_per_liter=cfg["coverage"],
                     recommended_coats=cfg["coats"],
@@ -370,6 +376,7 @@ def main() -> None:
                 db.flush()
             else:
                 brand.country = "DE"
+                brand.description = cfg.get("description")
                 brand.paint_finish = cfg["finish"]
                 brand.coverage_sqm_per_liter = cfg["coverage"]
                 brand.recommended_coats = cfg["coats"]

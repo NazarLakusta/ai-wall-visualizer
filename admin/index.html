@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — AI Wall Visualizer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232563eb'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18' fill='white' font-family='sans-serif'%3EA%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/admin/css/style.css?v=10">
+  <link rel="stylesheet" href="/admin/css/style.css?v=13">
 </head>
 <body>
   <div id="login-screen">
@@ -145,6 +145,10 @@
           <input type="hidden" id="brand-edit-id">
           <input id="brand-name" placeholder="Назва продукту" required>
           <input id="brand-country" placeholder="Країна">
+          <label>Підказка для клієнта в mini-app
+            <textarea id="brand-description" rows="2" maxlength="500" placeholder="Напр.: Основна латексна матова — універсальна для стін і стелі."></textarea>
+          </label>
+          <p class="hint small">Показується під вибором продукту в Telegram. Коротко: для чого ця фарба і чим відрізняється від інших.</p>
           <label>Витрата (м² з 1 л, 1 шар)
             <input id="brand-coverage" type="number" step="0.1" min="1" value="10">
           </label>
@@ -393,6 +397,6 @@
       </div>
     </div>
   </div>
-  <script src="/admin/js/app.js?v=11"></script>
+  <script src="/admin/js/app.js?v=12"></script>
 </body>
 </html>

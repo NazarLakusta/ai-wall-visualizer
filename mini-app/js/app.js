@@ -786,7 +786,7 @@ function updateBrandProductHint() {
     el.textContent = "";
     return;
   }
-  const custom = PRODUCT_HINTS[brand.name];
+  const custom = (brand.description || "").trim() || PRODUCT_HINTS[brand.name];
   const priceLine = brandPriceHint(brand);
   const meta = `${brand.paint_finish_label} · ${brand.coverage_sqm_per_liter} м²/л · ${brand.recommended_coats} шари`;
   el.textContent = custom

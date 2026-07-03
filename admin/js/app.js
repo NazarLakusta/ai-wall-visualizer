@@ -1067,6 +1067,7 @@ function editBrand(brand) {
   document.getElementById("brand-edit-id").value = brand.id;
   document.getElementById("brand-name").value = brand.name;
   document.getElementById("brand-country").value = brand.country || "";
+  document.getElementById("brand-description").value = brand.description || "";
   document.getElementById("brand-coverage").value = brand.coverage_sqm_per_liter || 10;
   document.getElementById("brand-coats").value = brand.recommended_coats || 2;
   document.getElementById("brand-finish").value = brand.paint_finish || "matte";
@@ -1142,6 +1143,7 @@ async function createBrand(e) {
   const payload = {
     name: document.getElementById("brand-name").value.trim(),
     country: document.getElementById("brand-country").value.trim() || null,
+    description: document.getElementById("brand-description").value.trim() || null,
     coverage_sqm_per_liter: parseFloat(document.getElementById("brand-coverage").value) || 10,
     recommended_coats: parseInt(document.getElementById("brand-coats").value, 10) || 2,
     paint_finish: document.getElementById("brand-finish").value,

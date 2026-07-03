@@ -134,9 +134,9 @@ async def ask_photo(message: Message):
 
 async def test_photo(message: Message):
     store = _store_for_message(message)
-    status_msg = await message.answer("🖼 <b>Відкриваємо тестовий проєкт...</b>", parse_mode="HTML")
+    await message.bot.send_chat_action(message.chat.id, "typing")
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await api_post(
                 client,
                 "/api/internal/projects/test",
@@ -146,7 +146,6 @@ async def test_photo(message: Message):
                     "first_name": message.from_user.first_name or "",
                     "store_slug": store.slug,
                     "telegram_chat_id": message.chat.id,
-                    "telegram_message_id": status_msg.message_id,
                     "telegram_bot_id": message.bot.id,
                     "key": settings.secret_key,
                 },
@@ -155,16 +154,16 @@ async def test_photo(message: Message):
             data = resp.json()
     except (httpx.ConnectError, httpx.ConnectTimeout):
         logger.exception("test_project_api_unreachable")
-        await status_msg.edit_text(API_UNAVAILABLE_MSG, parse_mode="HTML")
+        await message.answer(API_UNAVAILABLE_MSG, parse_mode="HTML")
         return
     except httpx.HTTPStatusError as exc:
         logger.exception("test_project_http_error", status=exc.response.status_code)
         detail = exc.response.text[:200] if exc.response.text else str(exc)
-        await status_msg.edit_text(f"❌ Помилка API ({exc.response.status_code}): {detail}")
+        await message.answer(f"❌ Помилка API ({exc.response.status_code}): {detail}")
         return
     except Exception as exc:
         logger.exception("test_project_failed")
-        await status_msg.edit_text(f"❌ Помилка створення проєкту: {exc}")
+        await message.answer(f"❌ Помилка створення проєкту: {exc}")
         return
 
     project_id = data["project_id"]

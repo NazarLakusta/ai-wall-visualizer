@@ -84,6 +84,7 @@ class BrandOut(BaseModel):
     paint_finish_label: str = "Матова"
     color_code_system: str = "manufacturer"
     color_code_system_label: str = "Палітра виробника"
+    description: str | None = None
     palettes: list["PaletteOut"] = []
     active: bool
     pack_sizes: list[BrandPackSizeOut] = []
@@ -239,6 +240,7 @@ class BrandCreate(BaseModel):
     coverage_sqm_per_liter: float = Field(default=10.0, gt=0)
     recommended_coats: int = Field(default=2, ge=1, le=5)
     paint_finish: str = Field(default="matte", pattern=r"^(matte|silk_matte|gloss)$")
+    description: str | None = Field(default=None, max_length=500)
     color_code_system: str = Field(
         default="manufacturer",
         pattern=r"^(ral|ncs|manufacturer|none|other)$",
@@ -255,6 +257,7 @@ class BrandUpdate(BaseModel):
     coverage_sqm_per_liter: float | None = Field(default=None, gt=0)
     recommended_coats: int | None = Field(default=None, ge=1, le=5)
     paint_finish: str | None = Field(default=None, pattern=r"^(matte|silk_matte|gloss)$")
+    description: str | None = Field(default=None, max_length=500)
     color_code_system: str | None = Field(
         default=None,
         pattern=r"^(ral|ncs|manufacturer|none|other)$",
