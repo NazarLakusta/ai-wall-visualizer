@@ -98,13 +98,9 @@ def _sync_packs(db, material: DecorativeMaterial, packs: list[tuple]) -> None:
     seen: set[int] = set()
     for i, (vol, weight, price, label) in enumerate(packs):
         row = next((p for p in existing if p.volume_liters and abs(p.volume_liters - vol) < 0.01), None)
-        if row:
-            seen.add(row.id)
-        else:
+        if not row:
             row = DecorativeMaterialPackSize(material_id=material.id)
             db.add(row)
-            db.flush()
-            seen.add(row.id)
         row.volume_liters = vol
         row.weight_kg = weight
         row.coverage_sqm = None
@@ -112,6 +108,8 @@ def _sync_packs(db, material: DecorativeMaterial, packs: list[tuple]) -> None:
         row.label = label
         row.sort_order = i
         row.active = True
+        db.flush()
+        seen.add(row.id)
     for pack in existing:
         if pack.id not in seen:
             pack.active = False
