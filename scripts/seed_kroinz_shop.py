@@ -239,13 +239,17 @@ def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
 
 def sync_packs(db, brand: Brand, packs: list[tuple[float, float, str, str | None]]) -> None:
     existing = list(db.scalars(select(BrandPackSize).where(BrandPackSize.brand_id == brand.id)).all())
+    matched: set[int] = set()
+
     for i, (vol, price, label, tint_base) in enumerate(packs):
         base = (tint_base or "").upper() or None
         row = next(
             (
                 p
                 for p in existing
-                if abs(p.volume_liters - vol) < 0.01 and (p.tint_base or None) == base
+                if p.id not in matched
+                and abs(p.volume_liters - vol) < 0.01
+                and (p.tint_base or None) == base
             ),
             None,
         )
@@ -255,6 +259,7 @@ def sync_packs(db, brand: Brand, packs: list[tuple[float, float, str, str | None
             row.tint_base = base
             row.sort_order = i
             row.active = True
+            matched.add(row.id)
         else:
             db.add(
                 BrandPackSize(
@@ -267,6 +272,11 @@ def sync_packs(db, brand: Brand, packs: list[tuple[float, float, str, str | None
                     active=True,
                 )
             )
+
+    # Hide leftover packs from earlier seeds (e.g. base-less 360/1450/2650)
+    for p in existing:
+        if p.id not in matched:
+            p.active = False
 
 
 def link_store_brand(db, store_id: int, brand_id: int) -> None:
