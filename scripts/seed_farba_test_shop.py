@@ -312,6 +312,7 @@ def _seed_decor_material(db, store_id: int, cfg: dict) -> int:
             category=cfg["category"],
             texture_scale=1.0,
             recommended_coats=cfg.get("recommended_coats", 2),
+            pack_sizing_mode="area",
             active=True,
             in_stock=True,
         )
@@ -320,6 +321,7 @@ def _seed_decor_material(db, store_id: int, cfg: dict) -> int:
     else:
         material.category = cfg["category"]
         material.recommended_coats = cfg.get("recommended_coats", 2)
+        material.pack_sizing_mode = "area"
         material.active = True
         material.in_stock = True
 

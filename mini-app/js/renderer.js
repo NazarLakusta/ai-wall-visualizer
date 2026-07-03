@@ -234,9 +234,12 @@ class WallRenderer {
         const texX = Math.floor(scaledX % texData.width);
         const texY = Math.floor(scaledY % texData.height);
         const ti = (texY * texData.width + texX) * 4;
-        targetR = (texData.data[ti] * targetR) / 255;
-        targetG = (texData.data[ti + 1] * targetG) / 255;
-        targetB = (texData.data[ti + 2] * targetB) / 255;
+        const texLum =
+          (0.299 * texData.data[ti] + 0.587 * texData.data[ti + 1] + 0.114 * texData.data[ti + 2]) / 255;
+        const mod = 0.9 + texLum * 0.1;
+        targetR *= mod;
+        targetG *= mod;
+        targetB *= mod;
       }
 
       let newR;

@@ -248,7 +248,9 @@ function updateCostBar() {
         .join(", ");
       let detail = state.mode === "paint"
         ? `~${est.liters_needed} л · ${packs}`
-        : `~${est.liters_needed} м² · ${packs}`;
+        : est.coverage_sqm_per_liter > 0
+          ? `~${est.liters_needed} л · ${packs}`
+          : `~${est.liters_needed} м² · ${packs}`;
       if (est.tint_base) detail += ` · база ${est.tint_base}`;
       detailEl.textContent = detail;
       detailEl.classList.remove("hidden");

@@ -1003,25 +1003,51 @@ async function removeDiscount(id) {
   loadColors();
 }
 
-function decorPackRowHtml(pack = {}) {
-  return `
+function formatDecorPackLabel(pack, mode) {
+  if (pack.label) return pack.label;
+  if (mode === "volume" && pack.volume_liters) return `${pack.volume_liters} л`;
+  if (pack.coverage_sqm) return `${pack.coverage_sqm} м²`;
+  return "уп.";
+}
+
+function decorPackRowHtml(pack = {}, mode = "volume") {
+  if (mode === "area") {
+    return `
     <div class="pack-row">
       <input type="hidden" class="pack-id" value="${pack.id || ""}">
       <input class="pack-coverage" type="number" step="0.1" min="0.1" placeholder="м²/уп." value="${pack.coverage_sqm ?? ""}" required>
       <input class="pack-price" type="number" step="1" min="1" placeholder="Ціна ₴" value="${pack.price_uah ?? ""}" required>
-      <input class="pack-label" type="text" placeholder="Підпис (25 кг)" value="${pack.label || ""}">
+      <input class="pack-label" type="text" placeholder="Підпис (25 м²)" value="${pack.label || ""}">
+      <button type="button" class="btn btn-danger pack-remove">×</button>
+    </div>`;
+  }
+  return `
+    <div class="pack-row">
+      <input type="hidden" class="pack-id" value="${pack.id || ""}">
+      <input class="pack-volume" type="number" step="0.1" min="0.1" placeholder="Обʼєм, л" value="${pack.volume_liters ?? ""}" required>
+      <input class="pack-weight" type="number" step="0.1" min="0.1" placeholder="Вага, кг" value="${pack.weight_kg ?? ""}">
+      <input class="pack-price" type="number" step="1" min="1" placeholder="Ціна ₴" value="${pack.price_uah ?? ""}" required>
+      <input class="pack-label" type="text" placeholder="Підпис (5 л / 6 кг)" value="${pack.label || ""}">
       <button type="button" class="btn btn-danger pack-remove">×</button>
     </div>`;
 }
 
-function readDecorPackRows() {
-  return [...document.querySelectorAll("#decor-packs-editor .pack-row")].map((row, i) => ({
-    id: row.querySelector(".pack-id")?.value ? parseInt(row.querySelector(".pack-id").value, 10) : null,
-    coverage_sqm: parseFloat(row.querySelector(".pack-coverage").value),
-    price_uah: parseFloat(row.querySelector(".pack-price").value),
-    label: row.querySelector(".pack-label").value.trim() || null,
-    sort_order: i,
-  }));
+function readDecorPackRows(mode = "volume") {
+  return [...document.querySelectorAll("#decor-packs-editor .pack-row")].map((row, i) => {
+    const base = {
+      id: row.querySelector(".pack-id")?.value ? parseInt(row.querySelector(".pack-id").value, 10) : null,
+      price_uah: parseFloat(row.querySelector(".pack-price").value),
+      label: row.querySelector(".pack-label").value.trim() || null,
+      sort_order: i,
+    };
+    if (mode === "area") {
+      return { ...base, coverage_sqm: parseFloat(row.querySelector(".pack-coverage").value) };
+    }
+    const volume = parseFloat(row.querySelector(".pack-volume").value);
+    const weightRaw = row.querySelector(".pack-weight")?.value;
+    const weight = weightRaw ? parseFloat(weightRaw) : null;
+    return { ...base, volume_liters: volume, weight_kg: weight };
+  });
 }
 
 function packRowHtml(pack = {}) {
@@ -1274,12 +1300,16 @@ async function loadMaterials() {
   materialsCache = materials;
   const tbody = document.querySelector("#materials-table tbody");
   tbody.innerHTML = materials.map((m) => {
-    const packs = (m.pack_sizes || []).map((p) => `${p.label || p.coverage_sqm + " м²"} — ₴${p.price_uah}`).join(", ");
+    const mode = m.pack_sizing_mode || "area";
+    const packs = (m.pack_sizes || []).map((p) => `${formatDecorPackLabel(p, mode)} — ₴${p.price_uah}`).join(", ");
+    const sizing = mode === "volume"
+      ? `${m.coverage_sqm_per_liter || "—"} м²/л × ${m.recommended_coats || 1}`
+      : `${m.recommended_coats || 1} шар(и), м²/уп.`;
     return `
     <tr>
       <td>${escapeHtml(m.name)}</td>
       <td>${escapeHtml(m.category) || "—"}</td>
-      <td>${packs || "—"}</td>
+      <td>${packs || "—"}<br><span class="hint small">${sizing}</span></td>
       <td>${m.texture_scale}</td>
       <td>
         <button type="button" class="btn ${m.in_stock ? "btn-success" : "btn-danger"}" onclick="toggleMaterialStock(${m.id}, ${m.in_stock ? "false" : "true"})">
@@ -1302,34 +1332,65 @@ async function editMaterialPacks(materialId) {
   if (!material) return;
   activeMaterialId = materialId;
   activeMaterialName = material.name;
+  const mode = material.pack_sizing_mode || "area";
   const panel = document.getElementById("material-shades-panel");
   panel.classList.remove("hidden");
   panel.innerHTML = `
     <h4>Фасування: ${escapeHtml(material.name)}</h4>
-    <p class="hint small">Упаковка декору: скільки м² покриває і ціна за упаковку.</p>
+    <label>Розрахунок фасування
+      <select id="material-pack-mode">
+        <option value="volume" ${mode === "volume" ? "selected" : ""}>За літрами (банки)</option>
+        <option value="area" ${mode === "area" ? "selected" : ""}>За м² на упаковку</option>
+      </select>
+    </label>
+    <label id="material-coverage-wrap" class="${mode === "volume" ? "" : "hidden"}">Витрата, м²/л
+      <input id="material-coverage" type="number" step="0.1" min="0.1" value="${material.coverage_sqm_per_liter || 8}">
+    </label>
     <label>Шарів за замовчуванням
       <input id="material-coats" type="number" min="1" max="5" value="${material.recommended_coats || 1}">
     </label>
-    <div id="decor-packs-editor">${(material.pack_sizes || []).map((p) => decorPackRowHtml(p)).join("")}</div>
+    <p class="hint small" id="decor-pack-hint">${mode === "volume"
+      ? "Упаковка: обʼєм (л), вага (кг), РРЦ за банку."
+      : "Упаковка: скільки м² покриває і ціна за упаковку."}</p>
+    <div id="decor-packs-editor">${(material.pack_sizes || []).map((p) => decorPackRowHtml(p, mode)).join("")}</div>
     <button type="button" class="btn" id="decor-add-pack">+ Додати упаковку</button>
     <button type="button" class="btn btn-primary" id="decor-save-packs">Зберегти фасування</button>
     <button type="button" class="btn" onclick="showMaterialShades(${materialId}, '${escapeHtml(material.name).replace(/'/g, "\\'")}')">← До відтінків</button>
   `;
+  let currentMode = mode;
+  const rerenderPackRows = (newMode) => {
+    const editor = document.getElementById("decor-packs-editor");
+    const rows = readDecorPackRows(currentMode);
+    currentMode = newMode;
+    editor.innerHTML = rows.map((p) => decorPackRowHtml(p, newMode)).join("");
+    document.getElementById("material-coverage-wrap")?.classList.toggle("hidden", newMode !== "volume");
+    document.getElementById("decor-pack-hint").textContent = newMode === "volume"
+      ? "Упаковка: обʼєм (л), вага (кг), РРЦ за банку."
+      : "Упаковка: скільки м² покриває і ціна за упаковку.";
+  };
+  document.getElementById("material-pack-mode").onchange = (e) => rerenderPackRows(e.target.value);
   document.getElementById("decor-add-pack").onclick = () => {
-    document.getElementById("decor-packs-editor").insertAdjacentHTML("beforeend", decorPackRowHtml({}));
+    const currentMode = document.getElementById("material-pack-mode").value;
+    document.getElementById("decor-packs-editor").insertAdjacentHTML("beforeend", decorPackRowHtml({}, currentMode));
   };
   document.getElementById("decor-packs-editor").onclick = (e) => {
     if (e.target.classList.contains("pack-remove")) e.target.closest(".pack-row")?.remove();
   };
   document.getElementById("decor-save-packs").onclick = async () => {
+    const currentMode = document.getElementById("material-pack-mode").value;
     const coats = parseInt(document.getElementById("material-coats").value, 10) || 1;
+    const payload = {
+      recommended_coats: coats,
+      pack_sizing_mode: currentMode,
+      pack_sizes: readDecorPackRows(currentMode),
+    };
+    if (currentMode === "volume") {
+      payload.coverage_sqm_per_liter = parseFloat(document.getElementById("material-coverage").value) || 8;
+    }
     await api(`/admin/materials/${materialId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        recommended_coats: coats,
-        pack_sizes: readDecorPackRows(),
-      }),
+      body: JSON.stringify(payload),
     });
     alert("Збережено");
     loadMaterials();
@@ -1465,6 +1526,7 @@ async function toggleDecorColorStock(materialId, colorId, inStock) {
 
 async function createMaterial(e) {
   e.preventDefault();
+  const mode = document.getElementById("material-pack-mode")?.value || "volume";
   await api("/admin/materials", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1472,6 +1534,10 @@ async function createMaterial(e) {
       name: document.getElementById("material-name").value,
       category: document.getElementById("material-category").value,
       texture_scale: parseFloat(document.getElementById("material-scale").value) || 1,
+      pack_sizing_mode: mode,
+      coverage_sqm_per_liter: mode === "volume"
+        ? parseFloat(document.getElementById("material-coverage")?.value) || 8
+        : null,
     }),
   });
   e.target.reset();
@@ -1543,6 +1609,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("import-form").onsubmit = previewImport;
   document.getElementById("confirm-import-btn").onclick = confirmImport;
   document.getElementById("material-form").onsubmit = createMaterial;
+  document.getElementById("material-pack-mode")?.addEventListener("change", (e) => {
+    document.getElementById("material-create-coverage-wrap")?.classList.toggle("hidden", e.target.value !== "volume");
+  });
   document.getElementById("broadcast-form").onsubmit = submitBroadcast;
   document.getElementById("bulk-price-form").onsubmit = submitBulkAdjust;
   document.getElementById("discount-form").onsubmit = submitDiscount;

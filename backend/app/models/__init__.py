@@ -372,6 +372,8 @@ class DecorativeMaterial(Base):
     preview_image: Mapped[str | None] = mapped_column(String(500))
     texture_scale: Mapped[float] = mapped_column(Float, default=1.0)
     recommended_coats: Mapped[int] = mapped_column(default=1)
+    pack_sizing_mode: Mapped[str] = mapped_column(String(10), default="area")
+    coverage_sqm_per_liter: Mapped[float | None] = mapped_column(Float, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     in_stock: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -392,7 +394,9 @@ class DecorativeMaterialPackSize(Base):
     material_id: Mapped[int] = mapped_column(
         ForeignKey("decorative_materials.id", ondelete="CASCADE"), nullable=False
     )
-    coverage_sqm: Mapped[float] = mapped_column(Float, nullable=False)
+    coverage_sqm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    volume_liters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
     price_uah: Mapped[float] = mapped_column(Float, nullable=False)
     label: Mapped[str | None] = mapped_column(String(50))
     sort_order: Mapped[int] = mapped_column(default=0)

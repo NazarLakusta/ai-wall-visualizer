@@ -192,6 +192,8 @@ class DecorativeMaterialOut(BaseModel):
     preview_url: str | None
     texture_scale: float
     recommended_coats: int = 1
+    pack_sizing_mode: str = "area"
+    coverage_sqm_per_liter: float | None = None
     in_stock: bool = True
     active: bool
     pack_sizes: list["DecorativeMaterialPackSizeOut"] = []
@@ -202,7 +204,9 @@ class DecorativeMaterialOut(BaseModel):
 
 class DecorativeMaterialPackSizeOut(BaseModel):
     id: int
-    coverage_sqm: float
+    coverage_sqm: float | None = None
+    volume_liters: float | None = None
+    weight_kg: float | None = None
     price_uah: float
     label: str | None = None
     sort_order: int = 0
@@ -213,7 +217,9 @@ class DecorativeMaterialPackSizeOut(BaseModel):
 
 class DecorativeMaterialPackSizeIn(BaseModel):
     id: int | None = None
-    coverage_sqm: float = Field(gt=0)
+    coverage_sqm: float | None = Field(default=None, gt=0)
+    volume_liters: float | None = Field(default=None, gt=0)
+    weight_kg: float | None = Field(default=None, gt=0)
     price_uah: float = Field(gt=0)
     label: str | None = None
     sort_order: int | None = None
@@ -301,6 +307,8 @@ class MaterialCreate(BaseModel):
     category: str | None = None
     texture_scale: float = 1.0
     recommended_coats: int = Field(default=1, ge=1, le=5)
+    pack_sizing_mode: str = Field(default="volume", pattern=r"^(volume|area)$")
+    coverage_sqm_per_liter: float | None = Field(default=None, gt=0)
     active: bool = True
     pack_sizes: list[DecorativeMaterialPackSizeIn] = []
 
@@ -311,6 +319,8 @@ class MaterialUpdate(BaseModel):
     category: str | None = None
     texture_scale: float | None = None
     recommended_coats: int | None = Field(default=None, ge=1, le=5)
+    pack_sizing_mode: str | None = Field(default=None, pattern=r"^(volume|area)$")
+    coverage_sqm_per_liter: float | None = Field(default=None, gt=0)
     in_stock: bool | None = None
     active: bool | None = None
     pack_sizes: list[DecorativeMaterialPackSizeIn] | None = None

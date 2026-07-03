@@ -255,6 +255,15 @@
         <form id="material-form">
           <input id="material-name" placeholder="Назва (Мокрий шовк)" required>
           <input id="material-category" placeholder="Категорія">
+          <label>Розрахунок
+            <select id="material-pack-mode">
+              <option value="volume" selected>За літрами (банки)</option>
+              <option value="area">За м² на упаковку</option>
+            </select>
+          </label>
+          <label id="material-create-coverage-wrap">Витрата, м²/л
+            <input id="material-coverage" type="number" step="0.1" min="0.1" value="8">
+          </label>
           <input id="material-scale" type="number" step="0.1" value="1" placeholder="Масштаб текстури">
           <button type="submit" class="btn btn-primary">Створити</button>
         </form>
@@ -397,6 +406,6 @@
       </div>
     </div>
   </div>
-  <script src="/admin/js/app.js?v=12"></script>
+  <script src="/admin/js/app.js?v=13"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ Usage (inside Docker):
     docker compose exec api alembic upgrade head
     docker compose exec api python /scripts/seed_kroinz_shop.py dekor-showroom
 
-Paint only (no facade, no decor, no primers).
+Paint only (no facade, no primers). Decor: see seed_kroinz_decor.py.
 Pack prices follow KROINZ Base A / Base C lines from the price list.
 """
 

@@ -142,7 +142,7 @@ def _parse_import_file(content: bytes, filename: str) -> pd.DataFrame:
 
 
 def _material_out(material: DecorativeMaterial) -> DecorativeMaterialOut:
-    packs = sorted(material.pack_sizes, key=lambda p: (p.sort_order, p.coverage_sqm))
+    packs = sorted(material.pack_sizes, key=lambda p: (p.sort_order, p.volume_liters or p.coverage_sqm or 0))
     return DecorativeMaterialOut(
         id=material.id,
         store_id=material.store_id,
@@ -153,6 +153,8 @@ def _material_out(material: DecorativeMaterial) -> DecorativeMaterialOut:
         preview_url=asset_url(material.preview_image),
         texture_scale=material.texture_scale,
         recommended_coats=material.recommended_coats or 1,
+        pack_sizing_mode=material.pack_sizing_mode or "area",
+        coverage_sqm_per_liter=material.coverage_sqm_per_liter,
         in_stock=material.in_stock,
         active=material.active,
         pack_sizes=[material_pack_out(p) for p in packs if p.active],

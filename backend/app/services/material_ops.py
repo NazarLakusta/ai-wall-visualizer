@@ -18,6 +18,11 @@ async def load_material_with_packs(db: AsyncSession, material_id: int) -> Decora
     )
 
 
+def _pack_sort_key(pack: DecorativeMaterialPackSize) -> tuple:
+    primary = pack.volume_liters if pack.volume_liters and pack.volume_liters > 0 else (pack.coverage_sqm or 0)
+    return (pack.sort_order, primary)
+
+
 async def sync_material_pack_sizes(
     db: AsyncSession,
     material: DecorativeMaterial,
@@ -42,6 +47,8 @@ async def sync_material_pack_sizes(
             pack = DecorativeMaterialPackSize(material_id=material.id)
             db.add(pack)
         pack.coverage_sqm = item.coverage_sqm
+        pack.volume_liters = item.volume_liters
+        pack.weight_kg = item.weight_kg
         pack.price_uah = item.price_uah
         pack.label = item.label
         pack.sort_order = item.sort_order if item.sort_order is not None else i
