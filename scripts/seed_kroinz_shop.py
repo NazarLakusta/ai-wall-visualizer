@@ -1,13 +1,11 @@
-"""Seed KROINZ shop: RAL palette + RAL colors + KROINZ paint products linked to RAL.
+"""Seed KROINZ paint catalog: RAL palette + RAL colors + products from official RRP.
 
 Usage (inside Docker):
-    docker compose exec api python /scripts/seed_kroinz_shop.py <store_slug> [ral_csv_path]
+    docker compose exec api alembic upgrade head
+    docker compose exec api python /scripts/seed_kroinz_shop.py dekor-showroom
 
-- <store_slug>       slug магазину (напр. kroinz-shop)
-- [ral_csv_path]     шлях до CSV з RAL-кольорами (за замовч. /scripts/ral.csv)
-                     колонки: name, hex, category, palette_name|brand_name, manufacturer_code
-
-Скрипт ідемпотентний: повторний запуск оновлює, а не дублює.
+Paint only (no facade, no decor, no primers).
+Pack prices follow KROINZ Base A / Base C lines from the price list.
 """
 
 import csv
@@ -33,53 +31,111 @@ from app.models import (
     StoreColor,
 )
 
+STORE_SLUG_DEFAULT = "dekor-showroom"
 RAL_PALETTE_NAME = "RAL"
-DEMO_BRAND_NAMES = {
+
+# Old demo / guessed product names to hide from the store.
+LEGACY_BRAND_NAMES = {
     "Innen Wunder",
     "Latex Matt",
     "Innen Latex",
     "Koala",
     "Latex Matt Gloss",
+    "KROINZ Whitex Farbe",
+    "KROINZ Extra weise",
+    "KROINZ Seiden Matt Latex",
 }
 
-# (name, finish, coverage m2/l, coats, [(volume_l, price_uah, label), ...])
+BASE_A_CATEGORIES = {
+    ColorCategory.WHITE,
+    ColorCategory.PASTEL,
+    ColorCategory.YELLOW,
+}
+BASE_C_CATEGORIES = {
+    ColorCategory.DARK,
+    ColorCategory.RED,
+    ColorCategory.BLUE,
+    ColorCategory.BROWN,
+}
+
+# finish, coverage m²/l, coats, packs: (volume_l, price_uah, label, tint_base A|C)
 PRODUCTS: list[dict] = [
-    {
-        "name": "KROINZ Whitex Farbe",
-        "finish": "matte",
-        "coverage": 8.0,
-        "coats": 2,
-        "packs": [(1.0, 280, "1 л"), (5.0, 1050, "5 л"), (10.0, 1950, "10 л")],
-    },
     {
         "name": "KROINZ Latex Matt",
         "finish": "matte",
         "coverage": 10.0,
         "coats": 2,
-        "packs": [(1.0, 360, "1 л"), (5.0, 1450, "5 л"), (10.0, 2650, "10 л")],
+        "packs": [
+            (1.0, 375, "1 л", "A"),
+            (5.0, 1550, "5 л", "A"),
+            (10.0, 2990, "10 л", "A"),
+            (1.0, 320, "1 л", "C"),
+            (4.7, 1200, "4.7 л", "C"),
+            (9.4, 2280, "9.4 л", "C"),
+        ],
     },
     {
         "name": "KROINZ Innen Wunder",
+        "finish": "matte",
+        "coverage": 10.0,
+        "coats": 2,
+        "packs": [
+            (1.0, 300, "1 л", "A"),
+            (5.0, 890, "5 л", "A"),
+            (10.0, 1850, "10 л", "A"),
+            (1.0, 210, "1 л", "C"),
+            (4.7, 690, "4.7 л", "C"),
+            (9.4, 1270, "9.4 л", "C"),
+        ],
+    },
+    {
+        "name": "KROINZ Seidenmatt Farbe",
         "finish": "silk_matte",
         "coverage": 10.0,
         "coats": 2,
-        "packs": [(1.0, 420, "1 л"), (5.0, 1750, "5 л"), (10.0, 3200, "10 л")],
+        "packs": [
+            (1.0, 450, "1 л", "A"),
+            (5.0, 1950, "5 л", "A"),
+            (10.0, 3850, "10 л", "A"),
+            (1.0, 370, "1 л", "C"),
+            (4.7, 1500, "4.7 л", "C"),
+            (9.4, 2950, "9.4 л", "C"),
+        ],
     },
     {
-        "name": "KROINZ Extra weise",
+        "name": "KROINZ ExtraWeiße Waschbare",
         "finish": "matte",
         "coverage": 8.0,
         "coats": 2,
-        "packs": [(1.0, 300, "1 л"), (5.0, 1200, "5 л"), (10.0, 2200, "10 л")],
+        "packs": [
+            (1.0, 500, "1 л", "A"),
+            (5.0, 2300, "5 л", "A"),
+            (10.0, 4500, "10 л", "A"),
+            (14.0, 6200, "14 л", "A"),
+            (1.0, 400, "1 л", "C"),
+            (4.7, 1700, "4.7 л", "C"),
+            (12.2, 3700, "12.2 л", "C"),
+        ],
     },
     {
-        "name": "KROINZ Seiden Matt Latex",
-        "finish": "silk_matte",
-        "coverage": 10.0,
+        "name": "KROINZ Eco White",
+        "finish": "matte",
+        "coverage": 8.0,
         "coats": 2,
-        "packs": [(1.0, 480, "1 л"), (5.0, 2050, "5 л"), (10.0, 3800, "10 л")],
+        "packs": [
+            (5.0, 550, "5 л", "A"),
+            (10.0, 950, "10 л", "A"),
+        ],
     },
 ]
+
+
+def tint_for_category(category: ColorCategory) -> str:
+    if category in BASE_C_CATEGORIES:
+        return "C"
+    if category in BASE_A_CATEGORIES:
+        return "A"
+    return "B"
 
 
 def ensure_ral_palette(db) -> ColorPalette:
@@ -96,8 +152,7 @@ def ensure_ral_palette(db) -> ColorPalette:
 
 def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
     if not csv_path.exists():
-        print(f"  ! CSV {csv_path} не знайдено — кольори RAL пропущено.")
-        print("    Спарсіть: py -3 scripts/parse_farbaland.py --catalog ral -o scripts/ral.csv")
+        print(f"  ! CSV {csv_path} not found — RAL colors skipped.")
         return 0
 
     added = 0
@@ -109,8 +164,9 @@ def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
         cat_c = cols.get("category")
         code_c = cols.get("manufacturer_code")
         if not (name_c and hex_c and cat_c):
-            print("  ! У CSV мають бути колонки name, hex, category")
+            print("  ! CSV must have columns: name, hex, category")
             return 0
+
         for row in reader:
             name = (row.get(name_c) or "").strip()
             hex_val = (row.get(hex_c) or "").strip()
@@ -125,6 +181,7 @@ def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
             except ValueError:
                 category = ColorCategory.WHITE
 
+            tint_base = tint_for_category(category)
             color = db.scalar(
                 select(Color).where(
                     Color.palette_id == palette_id,
@@ -139,6 +196,8 @@ def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
                     hex=hex_val,
                     manufacturer_code=code or None,
                     category=category,
+                    tint_base=tint_base,
+                    base_surcharge_percent=0.0,
                     active=True,
                 )
                 db.add(color)
@@ -147,6 +206,8 @@ def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
             else:
                 color.manufacturer_code = code or color.manufacturer_code
                 color.category = category
+                color.tint_base = tint_base
+                color.base_surcharge_percent = 0.0
                 color.active = True
 
             listing = db.scalar(
@@ -157,18 +218,28 @@ def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
             )
             if listing:
                 listing.active = True
+                listing.in_stock = True
             else:
                 db.add(StoreColor(store_id=store_id, color_id=color.id, active=True, in_stock=True))
     return added
 
 
-def sync_packs(db, brand: Brand, packs: list[tuple[float, float, str]]) -> None:
+def sync_packs(db, brand: Brand, packs: list[tuple[float, float, str, str | None]]) -> None:
     existing = list(db.scalars(select(BrandPackSize).where(BrandPackSize.brand_id == brand.id)).all())
-    for i, (vol, price, label) in enumerate(packs):
-        row = next((p for p in existing if abs(p.volume_liters - vol) < 0.01), None)
+    for i, (vol, price, label, tint_base) in enumerate(packs):
+        base = (tint_base or "").upper() or None
+        row = next(
+            (
+                p
+                for p in existing
+                if abs(p.volume_liters - vol) < 0.01 and (p.tint_base or None) == base
+            ),
+            None,
+        )
         if row:
             row.price_uah = price
             row.label = label
+            row.tint_base = base
             row.sort_order = i
             row.active = True
         else:
@@ -177,6 +248,7 @@ def sync_packs(db, brand: Brand, packs: list[tuple[float, float, str]]) -> None:
                     brand_id=brand.id,
                     volume_liters=vol,
                     price_uah=price,
+                    tint_base=base,
                     label=label,
                     sort_order=i,
                     active=True,
@@ -205,40 +277,33 @@ def link_brand_palette(db, brand_id: int, palette_id: int) -> None:
         db.add(BrandPalette(brand_id=brand_id, palette_id=palette_id))
 
 
-def deactivate_demo_catalog(db, store_id: int) -> tuple[int, int]:
-    """Hide old placeholder catalog entries from this store after seeding KROINZ."""
-    demo_brands = list(db.scalars(select(Brand).where(Brand.name.in_(DEMO_BRAND_NAMES))).all())
-    demo_brand_ids = [brand.id for brand in demo_brands]
-    if not demo_brand_ids:
+def deactivate_legacy_catalog(db, store_id: int) -> tuple[int, int]:
+    legacy_brands = list(db.scalars(select(Brand).where(Brand.name.in_(LEGACY_BRAND_NAMES))).all())
+    legacy_ids = [brand.id for brand in legacy_brands]
+    if not legacy_ids:
         return 0, 0
 
     disabled_brands = 0
-    links = list(
-        db.scalars(
-            select(StoreBrand).where(
-                StoreBrand.store_id == store_id,
-                StoreBrand.brand_id.in_(demo_brand_ids),
-                StoreBrand.active.is_(True),
-            )
-        ).all()
-    )
-    for link in links:
+    for link in db.scalars(
+        select(StoreBrand).where(
+            StoreBrand.store_id == store_id,
+            StoreBrand.brand_id.in_(legacy_ids),
+            StoreBrand.active.is_(True),
+        )
+    ).all():
         link.active = False
         disabled_brands += 1
 
     disabled_colors = 0
-    listings = list(
-        db.scalars(
-            select(StoreColor)
-            .join(Color, Color.id == StoreColor.color_id)
-            .where(
-                StoreColor.store_id == store_id,
-                Color.brand_id.in_(demo_brand_ids),
-                StoreColor.active.is_(True),
-            )
-        ).all()
-    )
-    for listing in listings:
+    for listing in db.scalars(
+        select(StoreColor)
+        .join(Color, Color.id == StoreColor.color_id)
+        .where(
+            StoreColor.store_id == store_id,
+            Color.brand_id.in_(legacy_ids),
+            StoreColor.active.is_(True),
+        )
+    ).all():
         listing.active = False
         disabled_colors += 1
 
@@ -246,7 +311,7 @@ def deactivate_demo_catalog(db, store_id: int) -> tuple[int, int]:
 
 
 def main() -> None:
-    slug = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("STORE_SLUG", "kroinz-shop")
+    slug = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("STORE_SLUG", STORE_SLUG_DEFAULT)
     csv_arg = sys.argv[2] if len(sys.argv) > 2 else "/scripts/ral.csv"
     csv_path = Path(csv_arg)
     if not csv_path.is_absolute() and not csv_path.exists():
@@ -272,7 +337,7 @@ def main() -> None:
             if not brand:
                 brand = Brand(
                     name=cfg["name"],
-                    country="UA",
+                    country="DE",
                     paint_finish=cfg["finish"],
                     coverage_sqm_per_liter=cfg["coverage"],
                     recommended_coats=cfg["coats"],
@@ -281,6 +346,7 @@ def main() -> None:
                 db.add(brand)
                 db.flush()
             else:
+                brand.country = "DE"
                 brand.paint_finish = cfg["finish"]
                 brand.coverage_sqm_per_liter = cfg["coverage"]
                 brand.recommended_coats = cfg["coats"]
@@ -289,13 +355,14 @@ def main() -> None:
             sync_packs(db, brand, cfg["packs"])
             link_store_brand(db, store.id, brand.id)
             link_brand_palette(db, brand.id, palette.id)
-            print(f"  Product: {cfg['name']} ({cfg['finish']}) -> RAL")
+            print(f"  Product: {cfg['name']} ({cfg['finish']}) — {len(cfg['packs'])} pack lines")
 
-        disabled_brands, disabled_colors = deactivate_demo_catalog(db, store.id)
+        disabled_brands, disabled_colors = deactivate_legacy_catalog(db, store.id)
         db.commit()
+
         print(f"\nOK: store '{store.name}' ({slug})")
-        print(f"  Products: {len(PRODUCTS)}, all linked to palette RAL")
-        print(f"  Demo hidden: {disabled_brands} products, {disabled_colors} colors")
+        print(f"  Paint products: {len(PRODUCTS)} (RAL palette linked)")
+        print(f"  Legacy hidden: {disabled_brands} products, {disabled_colors} colors")
 
 
 if __name__ == "__main__":

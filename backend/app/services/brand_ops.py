@@ -74,9 +74,12 @@ async def sync_brand_pack_sizes(
     seen_ids: set[int] = set()
 
     for i, item in enumerate(packs):
+        item_base = normalize_tint_base(item.tint_base) if hasattr(item, "tint_base") else None
         if item.id and item.id in existing:
             row = existing[item.id]
             row.volume_liters = item.volume_liters
+            row.price_uah = item.price_uah
+            row.tint_base = item_base
             row.label = item.label
             row.sort_order = item.sort_order if item.sort_order else i
             row.active = item.active
@@ -87,6 +90,7 @@ async def sync_brand_pack_sizes(
                     brand_id=brand.id,
                     volume_liters=item.volume_liters,
                     price_uah=item.price_uah,
+                    tint_base=item_base,
                     label=item.label,
                     sort_order=item.sort_order if item.sort_order else i,
                     active=item.active,

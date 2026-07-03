@@ -1025,11 +1025,17 @@ function readDecorPackRows() {
 }
 
 function packRowHtml(pack = {}) {
+  const base = (pack.tint_base || "").toUpperCase();
   return `
     <div class="pack-row">
       <input type="hidden" class="pack-id" value="${pack.id || ""}">
       <input class="pack-volume" type="number" step="0.1" min="0.1" placeholder="Обʼєм, л" value="${pack.volume_liters ?? ""}" required>
       <input class="pack-price" type="number" step="1" min="1" placeholder="Ціна ₴" value="${pack.price_uah ?? ""}" required>
+      <select class="pack-base" title="База тонування">
+        <option value="" ${!base ? "selected" : ""}>База —</option>
+        <option value="A" ${base === "A" ? "selected" : ""}>База A</option>
+        <option value="C" ${base === "C" ? "selected" : ""}>База C</option>
+      </select>
       <input class="pack-label" type="text" placeholder="Підпис (5 л)" value="${pack.label || ""}">
       <button type="button" class="btn btn-danger pack-remove">×</button>
     </div>`;
@@ -1040,6 +1046,7 @@ function readPackRows() {
     id: row.querySelector(".pack-id")?.value ? parseInt(row.querySelector(".pack-id").value, 10) : null,
     volume_liters: parseFloat(row.querySelector(".pack-volume").value),
     price_uah: parseFloat(row.querySelector(".pack-price").value),
+    tint_base: row.querySelector(".pack-base")?.value || null,
     label: row.querySelector(".pack-label").value.trim() || null,
     sort_order: i,
     active: true,
@@ -1075,7 +1082,12 @@ async function loadBrands() {
   brandsCache = brands;
   const tbody = document.querySelector("#brands-table tbody");
   tbody.innerHTML = brands.map((b) => {
-    const packs = (b.pack_sizes || []).map((p) => `${p.label || p.volume_liters + "л"} — ₴${p.price_uah}`).join(", ");
+    const packs = (b.pack_sizes || [])
+      .map((p) => {
+        const base = p.tint_base ? ` [${p.tint_base}]` : "";
+        return `${p.label || p.volume_liters + "л"}${base} — ₴${p.price_uah}`;
+      })
+      .join(", ");
     const finish = b.paint_finish_label || b.paint_finish || "—";
     const paletteLabels = (b.palettes || []).map((p) => p.name).join(", ") || "—";
     const ownerActions = isOwner()

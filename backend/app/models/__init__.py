@@ -264,6 +264,7 @@ class BrandPackSize(Base):
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), nullable=False)
     volume_liters: Mapped[float] = mapped_column(Float, nullable=False)
     price_uah: Mapped[float] = mapped_column(Float, nullable=False)
+    tint_base: Mapped[str | None] = mapped_column(String(1))
     label: Mapped[str | None] = mapped_column(String(50))
     sort_order: Mapped[int] = mapped_column(default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)

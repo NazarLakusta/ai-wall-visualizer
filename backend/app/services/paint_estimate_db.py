@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Brand, BrandPackSize, Color, Project
+from app.services.brand_ops import normalize_tint_base
 from app.services.paint_estimate import PackOption, PaintEstimate, build_paint_estimate
 from app.services.store_catalog import get_store_color
 from app.services.store_discounts import (
@@ -45,11 +46,21 @@ async def estimate_paint_for_project(
     discount_percent = resolve_paint_discount_percent(discounts, color.id, resolved_brand_id)
     pack_overrides = await load_store_pack_price_overrides(db, project.store_id, brand_ids={brand.id})
 
+    color_base = normalize_tint_base(color.tint_base) or "A"
+    if color_base == "B":
+        color_base = "A"
+
+    active_packs = [
+        p
+        for p in sorted(brand.pack_sizes, key=lambda x: (x.sort_order, x.volume_liters))
+        if p.active and p.volume_liters > 0 and effective_pack_price(p, pack_overrides) > 0
+    ]
+    base_specific = [p for p in active_packs if normalize_tint_base(p.tint_base) == color_base]
+    pack_source = base_specific if base_specific else [p for p in active_packs if not normalize_tint_base(p.tint_base)]
+
     packs = []
-    for p in sorted(brand.pack_sizes, key=lambda x: (x.sort_order, x.volume_liters)):
+    for p in pack_source:
         base_price = effective_pack_price(p, pack_overrides)
-        if not (p.active and p.volume_liters > 0 and base_price > 0):
-            continue
         price, _ = apply_discount_amount(base_price, discount_percent)
         packs.append(
             PackOption(
@@ -61,13 +72,14 @@ async def estimate_paint_for_project(
     if not packs:
         return None
 
+    use_pack_base_pricing = bool(base_specific)
     return build_paint_estimate(
         area_sqm=float(area),
         coats=brand.recommended_coats or 2,
         coverage_sqm_per_liter=brand.coverage_sqm_per_liter or 10.0,
         pack_options=packs,
         tint_base=color.tint_base,
-        base_surcharge_percent=color.base_surcharge_percent,
+        base_surcharge_percent=0.0 if use_pack_base_pricing else color.base_surcharge_percent,
     )
 
 

@@ -55,6 +55,7 @@ class BrandPackSizeOut(BaseModel):
     brand_id: int
     volume_liters: float
     price_uah: float
+    tint_base: str | None = None
     label: str | None = None
     sort_order: int = 0
     active: bool = True
@@ -66,6 +67,7 @@ class BrandPackSizeIn(BaseModel):
     id: int | None = None
     volume_liters: float = Field(gt=0)
     price_uah: float = Field(gt=0)
+    tint_base: str | None = Field(default=None, pattern=r"^[ABCabc]$")
     label: str | None = None
     sort_order: int = 0
     active: bool = True
