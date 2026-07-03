@@ -57,6 +57,8 @@ BASE_C_CATEGORIES = {
     ColorCategory.BLUE,
     ColorCategory.BROWN,
 }
+# Middle categories (grey/green/beige) decided by luminance. No Base B — KROINZ has only A / C.
+LUMINANCE_C_THRESHOLD = 150.0
 
 # finish, coverage m²/l, coats, packs: (volume_l, price_uah, label, tint_base A|C)
 PRODUCTS: list[dict] = [
@@ -130,12 +132,23 @@ PRODUCTS: list[dict] = [
 ]
 
 
-def tint_for_category(category: ColorCategory) -> str:
+def _luminance(hex_val: str) -> float:
+    h = hex_val.lstrip("#")
+    if len(h) != 6:
+        return 255.0
+    try:
+        r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return 255.0
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def tint_for_category(category: ColorCategory, hex_val: str) -> str:
     if category in BASE_C_CATEGORIES:
         return "C"
     if category in BASE_A_CATEGORIES:
         return "A"
-    return "B"
+    return "C" if _luminance(hex_val) < LUMINANCE_C_THRESHOLD else "A"
 
 
 def ensure_ral_palette(db) -> ColorPalette:
@@ -181,7 +194,7 @@ def load_ral_colors(db, store_id: int, palette_id: int, csv_path: Path) -> int:
             except ValueError:
                 category = ColorCategory.WHITE
 
-            tint_base = tint_for_category(category)
+            tint_base = tint_for_category(category, hex_val)
             color = db.scalar(
                 select(Color).where(
                     Color.palette_id == palette_id,

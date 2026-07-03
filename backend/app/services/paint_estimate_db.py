@@ -46,17 +46,35 @@ async def estimate_paint_for_project(
     discount_percent = resolve_paint_discount_percent(discounts, color.id, resolved_brand_id)
     pack_overrides = await load_store_pack_price_overrides(db, project.store_id, brand_ids={brand.id})
 
-    color_base = normalize_tint_base(color.tint_base) or "A"
+    color_base = normalize_tint_base(color.tint_base)
     if color_base == "B":
-        color_base = "A"
+        color_base = "C"
 
     active_packs = [
         p
         for p in sorted(brand.pack_sizes, key=lambda x: (x.sort_order, x.volume_liters))
         if p.active and p.volume_liters > 0 and effective_pack_price(p, pack_overrides) > 0
     ]
-    base_specific = [p for p in active_packs if normalize_tint_base(p.tint_base) == color_base]
-    pack_source = base_specific if base_specific else [p for p in active_packs if not normalize_tint_base(p.tint_base)]
+    if not active_packs:
+        return None
+
+    def packs_for(base: str | None) -> list[BrandPackSize]:
+        return [p for p in active_packs if normalize_tint_base(p.tint_base) == base]
+
+    has_base_packs = any(normalize_tint_base(p.tint_base) for p in active_packs)
+
+    pack_source: list[BrandPackSize] = []
+    used_base: str | None = None
+    if has_base_packs:
+        for candidate in (color_base, "A", "C"):
+            if candidate and packs_for(candidate):
+                pack_source = packs_for(candidate)
+                used_base = candidate
+                break
+        if not pack_source:
+            pack_source = active_packs
+    else:
+        pack_source = packs_for(None) or active_packs
 
     packs = []
     for p in pack_source:
@@ -72,14 +90,13 @@ async def estimate_paint_for_project(
     if not packs:
         return None
 
-    use_pack_base_pricing = bool(base_specific)
     return build_paint_estimate(
         area_sqm=float(area),
         coats=brand.recommended_coats or 2,
         coverage_sqm_per_liter=brand.coverage_sqm_per_liter or 10.0,
         pack_options=packs,
-        tint_base=color.tint_base,
-        base_surcharge_percent=0.0 if use_pack_base_pricing else color.base_surcharge_percent,
+        tint_base=used_base,
+        base_surcharge_percent=0.0 if has_base_packs else color.base_surcharge_percent,
     )
 
 
