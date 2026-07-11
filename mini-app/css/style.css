@@ -203,6 +203,12 @@ body {
 .scale-row input {
   flex: 1;
 }
+.scale-hint {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  color: var(--muted, #888);
+  line-height: 1.3;
+}
 
 .download-btn {
   width: 100%;

@@ -179,12 +179,61 @@ class WallRenderer {
   }
 
   _textureModulation(texData, texX, texY) {
-    const ti = (texY * texData.width + texX) * 4;
+    const tw = texData.width;
+    const th = texData.height;
+    const x = ((texX % tw) + tw) % tw;
+    const y = ((texY % th) + th) % th;
+    const ti = (y * tw + x) * 4;
     const texLum =
       (0.299 * texData.data[ti] + 0.587 * texData.data[ti + 1] + 0.114 * texData.data[ti + 2]) / 255;
-    // Dirt-map textures are mostly 220–255; stretch that range so relief is visible after tinting.
     const normalized = Math.max(0, Math.min(1, (texLum - 0.72) / 0.28));
     return 0.78 + normalized * 0.32;
+  }
+
+  _tileHash(tileX, tileY, seed) {
+    let h = (tileX * 374761393 + tileY * 668265263 + seed * 982451653) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+
+  /** Sample tiled decor texture with per-tile rotation / flip to hide seams. */
+  _sampleDecorTexture(texData, wallX, wallY, tilePxSize, seed) {
+    const tw = texData.width;
+    const th = texData.height;
+    const size = Math.max(16, tilePxSize);
+
+    const tileX = Math.floor(wallX / size);
+    const tileY = Math.floor(wallY / size);
+    let localX = (wallX - tileX * size) / size;
+    let localY = (wallY - tileY * size) / size;
+
+    const hash = this._tileHash(tileX, tileY, seed);
+    const rot = hash & 3;
+    const flip = (hash >> 2) & 1;
+
+    let u = localX;
+    let v = localY;
+    if (rot === 1) {
+      u = 1 - localY;
+      v = localX;
+    } else if (rot === 2) {
+      u = 1 - localX;
+      v = 1 - localY;
+    } else if (rot === 3) {
+      u = localY;
+      v = 1 - localX;
+    }
+    if (flip) u = 1 - u;
+
+    const texX = Math.min(tw - 1, Math.max(0, Math.floor(u * tw)));
+    const texY = Math.min(th - 1, Math.max(0, Math.floor(v * th)));
+    return this._textureModulation(texData, texX, texY);
+  }
+
+  _decorTileSize(textureScale, texData) {
+    const base = Math.min(texData.width, texData.height);
+    // Scale = visual tile size on wall in px (approx). Lower scale → more repeats.
+    return Math.max(20, textureScale * base * 0.06);
   }
 
   _getColor() {
@@ -205,7 +254,7 @@ class WallRenderer {
     return map[state.finish] || "matte";
   }
 
-  _applyFilter(hexColor, texData = null, textureScale = 1.0) {
+  _applyFilter(hexColor, texData = null, textureScale = 1.0, textureSeed = 1) {
     if (!this.baseData || !this.maskData || !this.specData) return;
 
     const finishType = this._finishType();
@@ -228,6 +277,7 @@ class WallRenderer {
     const d = finalData.data;
     const s = this.specData.data;
     const w = this.canvas.width;
+    const tilePxSize = texData ? this._decorTileSize(textureScale, texData) : 1;
 
     for (let i = 0; i < d.length; i += 4) {
       const maskAlpha = refinedMask[i / 4];
@@ -250,11 +300,7 @@ class WallRenderer {
       if (texData) {
         const x = (i / 4) % w;
         const y = Math.floor(i / 4 / w);
-        const scaledX = x / textureScale;
-        const scaledY = y / textureScale;
-        const texX = Math.floor(scaledX % texData.width);
-        const texY = Math.floor(scaledY % texData.height);
-        const texMod = this._textureModulation(texData, texX, texY);
+        const texMod = this._sampleDecorTexture(texData, x, y, tilePxSize, textureSeed);
         const roomLuma = Math.pow(luminance, 0.88);
         const highlight = specPower * 35;
         newR = roomLuma * targetR * texMod + highlight;
@@ -305,7 +351,8 @@ class WallRenderer {
 
     if (state.mode === "decor" && this.textureData) {
       const scale = state.textureScale || 1.0;
-      this._applyFilter(color, this.textureData, scale);
+      const seed = state.textureSeed || state.selectedMaterial?.id || this.project?.id || 1;
+      this._applyFilter(color, this.textureData, scale, seed);
     } else {
       this._applyFilter(color, null, 1.0);
     }

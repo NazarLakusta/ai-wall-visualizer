@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AI Wall Visualizer</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/app/css/style.css?v=2">
+  <link rel="stylesheet" href="/app/css/style.css?v=3">
 </head>
 <body>
   <div id="app">
@@ -67,10 +67,11 @@
       <div id="decor-panel" class="hidden">
         <div id="material-list" class="material-list"></div>
         <div class="scale-row">
-          <label>Масштаб:</label>
-          <input id="texture-scale" type="range" min="0.5" max="3" step="0.1" value="1">
+          <label>Малюнок:</label>
+          <input id="texture-scale" type="range" min="0.15" max="12" step="0.05" value="1">
           <span id="scale-value">1.0</span>
         </div>
+        <p class="hint small scale-hint">Менше — дрібніший рельєф (більше повторів). Більше — крупніші плями.</p>
         <div class="selection-bar">
           <span id="decor-selection-info" class="selection-info">Оберіть матеріал і відтінок</span>
           <button type="button" id="reset-decor-btn" class="reset-btn">↩ Оригінал</button>
@@ -114,7 +115,7 @@
 
   <script src="/app/js/assets.js"></script>
   <script src="/app/js/guided-filter.js"></script>
-  <script src="/app/js/renderer.js?v=3"></script>
-  <script src="/app/js/app.js?v=7"></script>
+  <script src="/app/js/renderer.js?v=4"></script>
+  <script src="/app/js/app.js?v=8"></script>
 </body>
 </html>

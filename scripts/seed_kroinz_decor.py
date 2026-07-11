@@ -27,7 +27,7 @@ DECOR_MATERIALS: list[dict] = [
         "pack_sizing_mode": "volume",
         "coverage_sqm_per_liter": 8.0,
         "recommended_coats": 1,
-        "texture_scale": 1.2,
+        "texture_scale": 0.9,
         "packs": [
             (1.0, 1.2, 1150, "1 л / 1.2 кг"),
             (2.5, 3.0, 2350, "2.5 л / 3 кг"),
@@ -47,7 +47,7 @@ DECOR_MATERIALS: list[dict] = [
         "pack_sizing_mode": "volume",
         "coverage_sqm_per_liter": 8.0,
         "recommended_coats": 1,
-        "texture_scale": 1.2,
+        "texture_scale": 0.9,
         "packs": [
             (1.0, None, 1450, "1 л"),
             (2.5, 3.0, 2750, "2.5 л / 3 кг"),
@@ -67,7 +67,7 @@ DECOR_MATERIALS: list[dict] = [
         "pack_sizing_mode": "volume",
         "coverage_sqm_per_liter": 6.0,
         "recommended_coats": 2,
-        "texture_scale": 1.5,
+        "texture_scale": 1.1,
         "packs": [
             (1.0, None, 1050, "1 л"),
             (5.0, None, 3850, "5 л"),

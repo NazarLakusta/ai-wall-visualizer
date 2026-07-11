@@ -44,6 +44,7 @@ let state = {
   selectedMaterial: null,
   selectedMaterialColor: null,
   textureScale: 1.0,
+  textureSeed: 1,
   promotions: [],
 };
 
@@ -898,8 +899,9 @@ function renderMaterials() {
       }
       state.selectedMaterial = material;
       state.textureScale = material.texture_scale || 1.0;
+      state.textureSeed = material.id;
       document.getElementById("texture-scale").value = state.textureScale;
-      document.getElementById("scale-value").textContent = state.textureScale.toFixed(1);
+      document.getElementById("scale-value").textContent = state.textureScale.toFixed(2);
       renderMaterials();
       await loadMaterialColors(material.id);
       if (state.materialColors.length) {
@@ -1171,7 +1173,7 @@ function setupUI() {
 
   document.getElementById("texture-scale").oninput = (e) => {
     state.textureScale = parseFloat(e.target.value);
-    document.getElementById("scale-value").textContent = state.textureScale.toFixed(1);
+    document.getElementById("scale-value").textContent = state.textureScale.toFixed(2);
     window.renderer.render();
   };
 
@@ -1251,7 +1253,9 @@ async function restoreSavedState() {
     if (material) {
       state.selectedMaterial = material;
       state.textureScale = material.texture_scale || 1.0;
+      state.textureSeed = material.id;
       document.getElementById("texture-scale").value = state.textureScale;
+      document.getElementById("scale-value").textContent = state.textureScale.toFixed(2);
       await loadMaterialColors(material.id);
       if (p.selected_decor_color_id) {
         state.selectedMaterialColor =
