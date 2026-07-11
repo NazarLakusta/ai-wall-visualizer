@@ -860,11 +860,20 @@ function renderMaterials() {
     const discBadge = m.discount_percent ? `<span class="discount-badge">−${m.discount_percent}%</span> ` : "";
     card.innerHTML = `${discBadge}<strong>${escapeHtml(m.name)}</strong>${outOfStock ? '<br><span class="stock-label">немає</span>' : ""}`;
     card.onclick = async () => {
-      state.selectedMaterial = m;
-      state.textureScale = m.texture_scale || 1.0;
+      let material = m;
+      try {
+        const fresh = await api(`/catalog/materials?project_id=${state.project.id}`);
+        state.materials = fresh;
+        material = fresh.find((x) => x.id === m.id) || m;
+      } catch (err) {
+        console.warn("materials refresh failed", err);
+      }
+      state.selectedMaterial = material;
+      state.textureScale = material.texture_scale || 1.0;
       document.getElementById("texture-scale").value = state.textureScale;
+      document.getElementById("scale-value").textContent = state.textureScale.toFixed(1);
       renderMaterials();
-      await loadMaterialColors(m.id);
+      await loadMaterialColors(material.id);
       if (state.materialColors.length) {
         state.selectedMaterialColor = state.materialColors[0];
         renderMaterialColors();
@@ -872,7 +881,10 @@ function renderMaterials() {
         state.selectedMaterialColor = null;
         updateDecorSelectionInfo();
       }
-      await window.renderer.loadTexture(m.texture_url);
+      const loaded = await window.renderer.loadTexture(material.texture_url);
+      if (!loaded && material.texture_url) {
+        console.warn("texture not loaded", material.texture_url);
+      }
       window.renderer.render();
       onSelectionChanged();
     };

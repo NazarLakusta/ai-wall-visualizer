@@ -158,16 +158,33 @@ class WallRenderer {
     if (!url) {
       this.texture = null;
       this.textureData = null;
-      return;
+      return false;
     }
-    this.texture = new Image();
-    await this._loadImage(this.texture, url);
-    const c = document.createElement("canvas");
-    c.width = this.texture.naturalWidth;
-    c.height = this.texture.naturalHeight;
-    const ctx = c.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(this.texture, 0, 0);
-    this.textureData = ctx.getImageData(0, 0, c.width, c.height);
+    try {
+      this.texture = new Image();
+      await this._loadImage(this.texture, url);
+      const c = document.createElement("canvas");
+      c.width = this.texture.naturalWidth;
+      c.height = this.texture.naturalHeight;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(this.texture, 0, 0);
+      this.textureData = ctx.getImageData(0, 0, c.width, c.height);
+      return true;
+    } catch (err) {
+      console.warn("texture load failed", url, err);
+      this.texture = null;
+      this.textureData = null;
+      return false;
+    }
+  }
+
+  _textureModulation(texData, texX, texY) {
+    const ti = (texY * texData.width + texX) * 4;
+    const texLum =
+      (0.299 * texData.data[ti] + 0.587 * texData.data[ti + 1] + 0.114 * texData.data[ti + 2]) / 255;
+    // Dirt-map textures are mostly 220–255; stretch that range so relief is visible after tinting.
+    const normalized = Math.max(0, Math.min(1, (texLum - 0.72) / 0.28));
+    return 0.78 + normalized * 0.32;
   }
 
   _getColor() {
@@ -226,6 +243,10 @@ class WallRenderer {
       let targetG = rgb.g;
       let targetB = rgb.b;
 
+      let newR;
+      let newG;
+      let newB;
+
       if (texData) {
         const x = (i / 4) % w;
         const y = Math.floor(i / 4 / w);
@@ -233,20 +254,13 @@ class WallRenderer {
         const scaledY = y / textureScale;
         const texX = Math.floor(scaledX % texData.width);
         const texY = Math.floor(scaledY % texData.height);
-        const ti = (texY * texData.width + texX) * 4;
-        const texLum =
-          (0.299 * texData.data[ti] + 0.587 * texData.data[ti + 1] + 0.114 * texData.data[ti + 2]) / 255;
-        const mod = 0.9 + texLum * 0.1;
-        targetR *= mod;
-        targetG *= mod;
-        targetB *= mod;
-      }
-
-      let newR;
-      let newG;
-      let newB;
-
-      if (!texData && hexColor) {
+        const texMod = this._textureModulation(texData, texX, texY);
+        const roomLuma = Math.pow(luminance, 0.88);
+        const highlight = specPower * 35;
+        newR = roomLuma * targetR * texMod + highlight;
+        newG = roomLuma * targetG * texMod + highlight;
+        newB = roomLuma * targetB * texMod + highlight;
+      } else if (hexColor) {
         if (finishType === "matte") {
           const luma = Math.pow(luminance, 0.85);
           newR = luma * targetR;
