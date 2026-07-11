@@ -112,6 +112,7 @@ class Store(Base):
     business_open_time: Mapped[str] = mapped_column(String(5), default="09:00")
     business_close_time: Mapped[str] = mapped_column(String(5), default="19:00")
     business_timezone: Mapped[str] = mapped_column(String(64), default="Europe/Kyiv")
+    decor_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

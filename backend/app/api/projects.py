@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import asset_url, get_current_user
 from app.config import settings
 from app.database import get_db
-from app.models import Project, ProjectStatus, Store, User
+from app.models import Project, Store, ProjectStatus, Store, User
 from app.schemas import ProjectOut, ProjectStateUpdate
 from app.services.file_validation import validate_image_upload
 from app.services.rate_limit import upload_limiter
@@ -163,6 +163,10 @@ async def update_project_state(
     data = body.model_dump(exclude_unset=True)
     mode = data.pop("mode", None)
     if mode is not None:
+        if mode == "decor":
+            store = await db.get(Store, project.store_id)
+            if not store or not store.decor_enabled:
+                mode = "paint"
         project.editor_mode = mode
     for key, value in data.items():
         setattr(project, key, value)

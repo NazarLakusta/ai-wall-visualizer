@@ -113,6 +113,7 @@ def _store_settings_out(store: Store) -> StoreSettingsOut:
         business_open_time=store.business_open_time or "09:00",
         business_close_time=store.business_close_time or "19:00",
         business_timezone=store.business_timezone or "Europe/Kyiv",
+        decor_enabled=store.decor_enabled if store.decor_enabled is not None else True,
         has_bot_token=bool(token),
         bot_token_hint=hint,
     )

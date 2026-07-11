@@ -280,6 +280,10 @@ async def list_materials(
 ):
     project = await _project_for_user(db, project_id, user)
 
+    store = await db.get(Store, project.store_id)
+    if not store or not store.decor_enabled:
+        return []
+
     materials = await db.scalars(
         select(DecorativeMaterial)
         .where(DecorativeMaterial.store_id == project.store_id, DecorativeMaterial.active.is_(True))
@@ -315,6 +319,10 @@ async def list_material_colors(
     db: AsyncSession = Depends(get_db),
 ):
     project = await _project_for_user(db, project_id, user)
+    store = await db.get(Store, project.store_id)
+    if not store or not store.decor_enabled:
+        raise HTTPException(status_code=403, detail="Decor catalog is disabled for this store")
+
     material = await db.get(DecorativeMaterial, material_id)
     if not material or material.store_id != project.store_id:
         raise HTTPException(status_code=404, detail="Material not found")
@@ -369,6 +377,10 @@ async def decor_estimate(
     db: AsyncSession = Depends(get_db),
 ):
     project = await _project_for_user(db, project_id, user)
+    store = await db.get(Store, project.store_id)
+    if not store or not store.decor_enabled:
+        raise HTTPException(status_code=403, detail="Decor catalog is disabled for this store")
+
     estimate = await estimate_decor_for_project(
         db, project, material_id, decor_color_id, wall_area_sqm
     )

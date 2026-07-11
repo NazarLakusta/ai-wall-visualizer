@@ -434,6 +434,29 @@ async function loadStore() {
     bar.classList.remove("hidden");
     label.textContent = state.store.name;
   }
+  applyDecorCatalogVisibility();
+}
+
+function isDecorEnabled() {
+  return state.store?.decor_enabled !== false;
+}
+
+function applyDecorCatalogVisibility() {
+  const decorBtn = document.querySelector('.mode-tabs button[data-mode="decor"]');
+  if (decorBtn) {
+    decorBtn.classList.toggle("hidden", !isDecorEnabled());
+  }
+  if (!isDecorEnabled() && state.mode === "decor") {
+    state.mode = "paint";
+    document.querySelectorAll(".mode-tabs button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.mode === "paint");
+    });
+    document.getElementById("paint-panel")?.classList.remove("hidden");
+    document.getElementById("decor-panel")?.classList.add("hidden");
+    state.selectedMaterial = null;
+    state.selectedMaterialColor = null;
+    window.renderer?.render();
+  }
 }
 
 async function loadBrands() {
@@ -588,6 +611,11 @@ function updateLoadMoreButton() {
 }
 
 async function loadMaterials() {
+  if (!isDecorEnabled()) {
+    state.materials = [];
+    renderMaterials();
+    return;
+  }
   state.materials = await api(`/catalog/materials?project_id=${state.project.id}`);
   renderMaterials();
 }
@@ -1055,6 +1083,7 @@ async function submitLead() {
 function setupUI() {
   document.querySelectorAll(".mode-tabs button").forEach((btn) => {
     btn.onclick = () => {
+      if (btn.dataset.mode === "decor" && !isDecorEnabled()) return;
       document.querySelectorAll(".mode-tabs button").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       state.mode = btn.dataset.mode;
@@ -1203,8 +1232,9 @@ async function restoreSavedState() {
   }
 
   const useDecor =
-    p.editor_mode === "decor" ||
-    Boolean(p.selected_material_id || p.selected_decor_color_id);
+    isDecorEnabled() &&
+    (p.editor_mode === "decor" ||
+      Boolean(p.selected_material_id || p.selected_decor_color_id));
 
   if (useDecor) {
     state.mode = "decor";

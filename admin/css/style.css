@@ -271,6 +271,18 @@ form input, form select { padding: 8px; border: 1px solid #ccc; border-radius: 4
   margin-bottom: 8px;
   padding: 8px;
 }
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 400px;
+  margin: 12px 0 4px;
+  font-weight: normal;
+}
+.checkbox-row input {
+  width: auto;
+  margin: 0;
+}
 .swatch { width: 24px; height: 24px; border-radius: 4px; display: inline-block; vertical-align: middle; border: 1px solid #ccc; }
 .import-preview { max-height: 300px; overflow-y: auto; }
 

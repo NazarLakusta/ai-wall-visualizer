@@ -289,6 +289,7 @@ async function loadStoreSettings() {
   document.getElementById("store-open-time").value = store.business_open_time || "09:00";
   document.getElementById("store-close-time").value = store.business_close_time || "19:00";
   document.getElementById("store-timezone").value = store.business_timezone || "Europe/Kyiv";
+  document.getElementById("store-decor-enabled").checked = store.decor_enabled !== false;
   document.getElementById("store-telegram").value = store.telegram_username || "";
   document.getElementById("store-leads-group").value = store.leads_group_chat_id || "";
   document.getElementById("store-manager-chat").value = store.manager_telegram_chat_id || "";
@@ -322,6 +323,7 @@ async function saveStoreSettings(e) {
     business_open_time: document.getElementById("store-open-time").value || "09:00",
     business_close_time: document.getElementById("store-close-time").value || "19:00",
     business_timezone: document.getElementById("store-timezone").value || "Europe/Kyiv",
+    decor_enabled: document.getElementById("store-decor-enabled").checked,
     telegram_username: document.getElementById("store-telegram").value,
     leads_group_chat_id: groupRaw ? parseInt(groupRaw, 10) : null,
     manager_telegram_chat_id: chatRaw ? parseInt(chatRaw, 10) : null,

@@ -375,6 +375,7 @@ class StorePublicOut(BaseModel):
     phone: str | None = None
     address: str | None = None
     telegram_username: str | None = None
+    decor_enabled: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -391,6 +392,7 @@ class StoreSettingsUpdate(BaseModel):
     business_open_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     business_close_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     business_timezone: str | None = None
+    decor_enabled: bool | None = None
 
 
 class StoreSettingsOut(BaseModel):
@@ -406,6 +408,7 @@ class StoreSettingsOut(BaseModel):
     business_open_time: str = "09:00"
     business_close_time: str = "19:00"
     business_timezone: str = "Europe/Kyiv"
+    decor_enabled: bool = True
     has_bot_token: bool = False
     bot_token_hint: str | None = None
 
